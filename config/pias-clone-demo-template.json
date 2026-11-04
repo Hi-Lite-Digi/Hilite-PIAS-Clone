@@ -1,0 +1,33 @@
+{
+  "name": "pias_clone_demo_invite",
+  "language": "en_US",
+  "category": "MARKETING",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Hilite demo"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, you're invited to try the Hilite demo with PIAS_Clone Bot.\n\nExplore sample leads, campaigns, and inbox conversations using the button below.\n\nReply STOP to opt out.",
+      "example": {
+        "body_text": [["Aisha"]]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Demo messages only"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open demo",
+          "url": "https://hilite-outreach.vercel.app/"
+        }
+      ]
+    }
+  ]
+}
