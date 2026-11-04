@@ -19,35 +19,38 @@ inventory confirms this is the new number, rather than any older business accoun
 
 ## Template submitted
 
-Payload: `config/pias-clone-demo-template.json`.
+Template definition: `config/pias-clone-demo-template.json`.
+Original poster: `assets/demo/cpf-webinar-poster.png`.
 
-- Name: `pias_clone_demo_invite`
+- Name: `pias_clone_cpf_webinar_image`
 - Language: English (US), `en_US`
 - Category: Marketing (CPF webinar invitation)
-- Header: CPF Changes & You
+- Header: Image, using the user's full original poster without changes
 - First-name variable: `{{1}}`; sample: Pyie
 - Quick replies: Attending, Maybe next time, Unsubscribe
 - Footer: Reply UNSUBSCRIBE to stop receiving updates.
 
-The user rejected the initial software-demo invitation and supplied the CPF
-webinar invitation wording. The payload now contains that supplied text,
-including the **Apex Premier** sign-off and **29 October 2026 (Thursday)** date.
+The template contains the supplied CPF webinar invitation wording, including
+the **Apex Premier** sign-off and **29 October 2026 (Thursday)** date.
 Keep those supplied details unless the user requests a change. The name is the
 only body variable; the date and event name are fixed in this version.
 
-**Status: corrected and resubmitted to Meta on 4 November 2026; In review.**
-Template ID: `1505051565019452`. The same template was edited only in the new
-account `1656774412758599`. The original software-demo link and demo footer were
-replaced with the three quick replies and unsubscribe footer.
+**Status: image version submitted to Meta on 4 November 2026; In review.**
+Template ID: `1091074947262722`. Created only in the new account
+`1656774412758599`. The saved preview was verified to contain the uploaded
+poster, supplied invitation, and three quick replies.
 
-The saved Meta preview was verified to contain the supplied CPF invitation and
-all three buttons. An initial edit with an empty header was rejected because
-Meta expected the existing text header's text field. Resubmission with
-**CPF Changes & You** as the header succeeded.
+The earlier text version (`pias_clone_demo_invite`, `1505051565019452`) was
+locked while under review when the poster arrived, so the image version has a
+new name. The test helper now targets the image version. The earlier version
+was last observed as Active - Quality pending; use the image version above.
 
-No poster image has been added. The user's attachment shows only part of the
-poster inside a WhatsApp screenshot; the original poster is still needed for
-an image header. Do not upload the entire conversation screenshot as a poster.
+Meta received the original 1,457,298-byte PNG as the review sample. The static
+definition omits Meta's upload-specific sample handle; recreating it through
+the API requires a new media upload for that handle. The original file is kept
+in the repository for reuse.
+
+[View the image template](https://business.facebook.com/latest/whatsapp_manager/template_details/?business_id=1564220678374619&tab=template-details&childRoute=CAPI&id=1091074947262722&nav_ref=whatsapp_manager&asset_id=1656774412758599).
 
 [View the new account's templates](https://business.facebook.com/latest/whatsapp_manager/message_templates?business_id=1564220678374619&asset_id=1656774412758599).
 The template-manager page initially defaulted to an older account; no template
@@ -66,6 +69,9 @@ META_NEW_SENDER_NUMBER=the-new-verified-number-with-country-code
 META_TEST_RECIPIENT=a-separate-number-you-control
 META_TEST_ALLOWED_RECIPIENT=the-same-explicitly-authorized-test-recipient
 META_TEST_FIRST_NAME=Demo
+META_HEADER_IMAGE_ID=the-meta-media-id-for-the-original-poster
+# Alternatively set META_HEADER_IMAGE_URL to a public HTTPS image URL.
+# Set exactly one image source, not both.
 ```
 
 ```sh
@@ -80,6 +86,11 @@ before sending. It also rejects every account or phone ID other than the
 confirmed new ones above. It never edits phone numbers and does not retry automatically.
 A returned message ID confirms Meta accepted the request; delivery still needs
 to be verified on the recipient's device or through a status webhook.
+
+The helper includes an image header parameter and rejects missing or invalid
+image configuration before contacting Meta. The review sample does not
+automatically attach the poster to a send; each send needs its media ID or URL.
+See [Meta's template object example](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/types/TemplateObject/).
 
 The existing public Hilite demo remains in simulated mode with real outreach
 disabled. Its Hermes integration is separate from this Meta Cloud API setup;

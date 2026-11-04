@@ -1,12 +1,11 @@
 {
-  "name": "pias_clone_demo_invite",
+  "name": "pias_clone_cpf_webinar_image",
   "language": "en_US",
   "category": "MARKETING",
   "components": [
     {
       "type": "HEADER",
-      "format": "TEXT",
-      "text": "CPF Changes & You"
+      "format": "IMAGE"
     },
     {
       "type": "BODY",

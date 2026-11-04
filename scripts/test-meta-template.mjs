@@ -7,9 +7,27 @@ const template = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-temp
 const dedicatedBot = { wabaId: "1656774412758599", phoneNumberId: "1442204225635652" };
 const digits = value => String(value || "").replace(/[+\s()-]/g, "");
 
-export function buildTestMessage(recipient, firstName = "Demo") {
+/** @param {{ id?: string, link?: string }} [headerImage] */
+export function buildTestMessage(recipient, firstName = "Demo", headerImage = undefined) {
   const to = digits(recipient);
   if (!/^[1-9]\d{7,14}$/.test(to)) throw new Error("Set a valid, separate test-recipient number with its country code.");
+  const components = [{ type: "body", parameters: [{ type: "text", text: String(firstName || "Demo").trim().slice(0, 80) }] }];
+  if (template.components.some(component => component.type === "HEADER" && component.format === "IMAGE")) {
+    const id = String(headerImage?.id || "").trim();
+    const link = String(headerImage?.link || "").trim();
+    if ((!id && !link) || (id && link)) throw new Error("Set exactly one META_HEADER_IMAGE_ID or META_HEADER_IMAGE_URL for the poster.");
+    let image;
+    if (id) {
+      if (!/^\d+$/.test(id)) throw new Error("Use a valid Meta media ID for the poster.");
+      image = { id };
+    } else {
+      let url;
+      try { url = new URL(link); } catch { throw new Error("Use a public HTTPS URL for the poster."); }
+      if (url.protocol !== "https:" || url.username || url.password) throw new Error("Use a public HTTPS URL for the poster.");
+      image = { link: url.href };
+    }
+    components.unshift({ type: "header", parameters: [{ type: "image", image }] });
+  }
   return {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -18,13 +36,13 @@ export function buildTestMessage(recipient, firstName = "Demo") {
     template: {
       name: template.name,
       language: { code: template.language },
-      components: [{ type: "body", parameters: [{ type: "text", text: String(firstName || "Demo").trim().slice(0, 80) }] }],
+      components,
     },
   };
 }
 
 export async function runMetaTemplateTest(env, { send = false, check = false, fetcher = fetch } = {}) {
-  const message = buildTestMessage(env.META_TEST_RECIPIENT, env.META_TEST_FIRST_NAME);
+  const message = buildTestMessage(env.META_TEST_RECIPIENT, env.META_TEST_FIRST_NAME, { id: env.META_HEADER_IMAGE_ID, link: env.META_HEADER_IMAGE_URL });
   const summary = { mode: send ? "send-one-test" : check ? "check-setup" : "preview", template: template.name, language: template.language, recipient: `ending ${message.to.slice(-4)}` };
   if (!send && !check) return summary;
 
