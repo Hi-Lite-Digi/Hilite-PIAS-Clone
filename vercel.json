@@ -7,7 +7,7 @@
   "functions": {
     "api/**/*.js": {
       "maxDuration": 300,
-      "includeFiles": ["assets/demo/cpf-webinar-poster.png", "config/pias-clone-demo-template.json"]
+      "includeFiles": "{assets/demo/cpf-webinar-poster.png,config/pias-clone-demo-template.json}"
     }
   },
   "crons": [
