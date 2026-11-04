@@ -6,26 +6,37 @@
     {
       "type": "HEADER",
       "format": "TEXT",
-      "text": "Hilite demo"
+      "text": "CPF Changes & You"
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, you're invited to try the Hilite demo with PIAS_Clone Bot.\n\nExplore sample leads, campaigns, and inbox conversations using the button below.\n\nReply STOP to opt out.",
+      "text": "Hi {{1}} 👋\n\n🌟 Plan Ahead for Your Desired Retirement Lifestyle! 🌟\n\nRetirement is not just about how much we save, but how wisely we grow, protect and manage our wealth to enjoy the lifestyle we desire. 💰📈\n\nWith longer life expectancy, rising inflation and changing market conditions, having a well-structured retirement plan is more important than ever.\n\n💡 Plan Early. Invest Wisely. Retire Confidently.\n\n🥂 Join us for complimentary webinar  — “CPF Changes & You” on 29 October 2026 (Thursday).\n\nGet insights on:\n\n✅ How to optimise your CPF,\n\n✅ How to build a sustainable retirement portfolio\n\n✅ How to generate stable passive income for a financially secure and stress-free retirement! 🌅\n\n✨ A little planning today can bring a lifetime of peace of mind tomorrow.\n\n📩 Tap Attending to get the zoom link\n\nMaybe for future invitation\nBest regards,\nApex Premier",
       "example": {
-        "body_text": [["Aisha"]]
+        "body_text": [
+          [
+            "Pyie"
+          ]
+        ]
       }
     },
     {
       "type": "FOOTER",
-      "text": "Demo messages only"
+      "text": "Reply UNSUBSCRIBE to stop receiving updates."
     },
     {
       "type": "BUTTONS",
       "buttons": [
         {
-          "type": "URL",
-          "text": "Open demo",
-          "url": "https://hilite-outreach.vercel.app/"
+          "type": "QUICK_REPLY",
+          "text": "Attending"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Maybe next time"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Unsubscribe"
         }
       ]
     }

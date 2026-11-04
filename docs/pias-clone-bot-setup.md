@@ -23,20 +23,31 @@ Payload: `config/pias-clone-demo-template.json`.
 
 - Name: `pias_clone_demo_invite`
 - Language: English (US), `en_US`
-- Category: Marketing (demo invitation)
-- Header: Hilite demo
-- First-name example: Aisha (fictional)
-- Website button: Open demo → `https://hilite-outreach.vercel.app/`
+- Category: Marketing (CPF webinar invitation)
+- Header: CPF Changes & You
+- First-name variable: `{{1}}`; sample: Pyie
+- Quick replies: Attending, Maybe next time, Unsubscribe
+- Footer: Reply UNSUBSCRIBE to stop receiving updates.
 
-> Hi {{1}}, you're invited to try the Hilite demo with PIAS_Clone Bot.
->
-> Explore sample leads, campaigns, and inbox conversations using the button below.
->
-> Reply STOP to opt out.
+The user rejected the initial software-demo invitation and supplied the CPF
+webinar invitation wording. The payload now contains that supplied text,
+including the **Apex Premier** sign-off and **29 October 2026 (Thursday)** date.
+Keep those supplied details unless the user requests a change. The name is the
+only body variable; the date and event name are fixed in this version.
 
-**Status: submitted to Meta on 4 November 2026; In review, not approved.**
-Template ID: `1505051565019452`. It was created only in the new account
-`1656774412758599`. Website click tracking was disabled.
+**Status: corrected and resubmitted to Meta on 4 November 2026; In review.**
+Template ID: `1505051565019452`. The same template was edited only in the new
+account `1656774412758599`. The original software-demo link and demo footer were
+replaced with the three quick replies and unsubscribe footer.
+
+The saved Meta preview was verified to contain the supplied CPF invitation and
+all three buttons. An initial edit with an empty header was rejected because
+Meta expected the existing text header's text field. Resubmission with
+**CPF Changes & You** as the header succeeded.
+
+No poster image has been added. The user's attachment shows only part of the
+poster inside a WhatsApp screenshot; the original poster is still needed for
+an image header. Do not upload the entire conversation screenshot as a poster.
 
 [View the new account's templates](https://business.facebook.com/latest/whatsapp_manager/message_templates?business_id=1564220678374619&asset_id=1656774412758599).
 The template-manager page initially defaulted to an older account; no template
