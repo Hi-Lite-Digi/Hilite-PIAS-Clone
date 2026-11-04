@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.local
+.codex-tmp/
+*.log
+__pycache__/
+*.py[cod]
+public-hr-discovery-*.json
+public-hr-discovery-*.csv
+
+.vercel
+.openai/
+.env*
+!.env.example

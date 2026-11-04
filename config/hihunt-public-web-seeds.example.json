@@ -1,0 +1,10 @@
+[
+  {
+    "companyName": "Example Pte Ltd",
+    "companyDomain": "example.com",
+    "urls": [
+      "https://example.com/careers",
+      "https://example.com/about/team"
+    ]
+  }
+]

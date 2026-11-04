@@ -1,0 +1,7 @@
+.env
+.env.*
+!.env.example
+.codex-tmp
+.tmp
+dist
+node_modules

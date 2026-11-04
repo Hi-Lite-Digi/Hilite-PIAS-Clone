@@ -1,0 +1,6 @@
+name: hihunt-inbox
+version: "1.1"
+description: Forward every external WhatsApp direct message to HiHunt without dispatching it to the Hermes agent.
+requires_env:
+  - HIHUNT_INBOUND_URL
+  - HIHUNT_INBOUND_SECRET

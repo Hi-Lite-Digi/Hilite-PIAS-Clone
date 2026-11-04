@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm install --legacy-peer-deps",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 300
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/campaign-sends",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/campaign-reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/hr-discovery",
+      "schedule": "0 23 * * *"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api(?:/|$)).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
