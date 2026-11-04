@@ -35,7 +35,7 @@ the **Apex Premier** sign-off and **29 October 2026 (Thursday)** date.
 Keep those supplied details unless the user requests a change. The name is the
 only body variable; the date and event name are fixed in this version.
 
-**Status: image version submitted to Meta on 4 November 2026; In review.**
+**Status: WhatsApp Manager shows Active - Quality pending on 4 November 2026.**
 Template ID: `1091074947262722`. Created only in the new account
 `1656774412758599`. The saved preview was verified to contain the uploaded
 poster, supplied invitation, and three quick replies.
@@ -56,7 +56,41 @@ in the repository for reuse.
 The template-manager page initially defaulted to an older account; no template
 was created or changed there.
 
-## Controlled test after registration and approval
+## Manual test in Hilite
+
+RE-engage Settings contains a **WhatsApp test · PIAS_Clone Bot** panel. Its
+private test key is separate from the Meta access token. The test key stays in
+browser memory and is not saved to local storage. Actual recipients are not
+written into the public fictional-data inbox.
+
+Server setup requires these Vercel settings:
+
+- `META_ACCESS_TOKEN` (Secret): token scoped to the new bot/account only
+- `META_TEST_OPERATOR_TOKEN` (Secret): a separate random private key, at least 32 characters
+- `META_TEST_SEND_ENABLED=true` (Config): enable only after approving the connection
+
+The new WABA and phone IDs are pinned in the server. Conflicting environment
+IDs are rejected. `/api/meta-whatsapp` requires the private key for every
+request, rejects foreign origins, and sends at most one message per confirmed
+request. Connection checks do not upload media or send messages. A send first
+checks the new phone is `CONNECTED` and the exact English image template is
+`APPROVED`, then uploads the original poster and sends that media ID.
+
+The image template is active, but the new phone was last observed **Pending**
+with display name **In Review**. Meta access permissions, server credentials,
+and registration still need completion before a live test. No token or operator
+key has been provisioned yet. No payment method has been added.
+
+After setup, enter the private test key, click **Check bot**, enter a recipient
+and first name, confirm the recipient agreed to receive the test, and send one
+message. The confirmation notes that Meta charges may apply. Meta acceptance is
+shown separately from delivery confirmation; verify receipt on the recipient's
+phone. Requests are never automatically retried.
+
+The public demo's campaign queue, reminders, and discovery remain disabled.
+Live inbound replies/webhooks are not yet connected to Hilite's demo inbox.
+
+## Optional command-line test
 
 Keep these values in ignored `.env.local` or another private server environment:
 
@@ -92,13 +126,12 @@ image configuration before contacting Meta. The review sample does not
 automatically attach the poster to a send; each send needs its media ID or URL.
 See [Meta's template object example](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/types/TemplateObject/).
 
-The existing public Hilite demo remains in simulated mode with real outreach
-disabled. Its Hermes integration is separate from this Meta Cloud API setup;
-the new Meta bot is not yet connected to the public demo's campaign send flow.
+The existing public Hilite campaign demo remains simulated. The private manual
+test uses Meta Cloud API and does not enable the Hermes campaign send flow.
 No real message has been sent as part of this setup.
 
-Remaining: Meta approval/connection of the new number, template approval,
-server-only access credentials for the new bot, and a recipient chosen when the
+Remaining: Meta approval/connection of the new number, server-only access
+credentials for the new bot, and a recipient chosen when the
 user wants to send a test. No recipient is required to create or approve a
 template. An approved template can be reused for different recipients who have
 opted in; each actual send still specifies a destination. See

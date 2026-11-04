@@ -13,6 +13,7 @@ import {
 import { useBlocker, type BlockerFunction } from "react-router";
 import { getEmailSenderStatus, getWhatsAppStatus, type EmailSenderStatus, type WhatsAppGatewayStatus } from "../../lib/api";
 import { getSendQueue, type SendQueueResult } from "../../lib/stubs";
+import MetaWhatsAppTestPanel from "./MetaWhatsAppTestPanel";
 import {
   Button,
   Card,
@@ -166,6 +167,8 @@ export default function SettingsPage({ initialCap, initialEmailSender, initialGa
           subtitle="Manage the WhatsApp connection, client-facing email sender, and safeguards applied to approved batches."
           title="RE-engage settings"
         />
+
+        <MetaWhatsAppTestPanel />
 
         <Card
           description="Choose the connections and sender identity used by approved RE-engage campaigns."

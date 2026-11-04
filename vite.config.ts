@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => {
           const chunks: Buffer[] = []
           for await (const chunk of req) chunks.push(Buffer.from(chunk))
           const body = chunks.length ? Buffer.concat(chunks) : undefined
-          const request = new Request(`http://127.0.0.1${req.url}`, {
+          const request = new Request(`http://${req.headers.host || '127.0.0.1'}${req.url}`, {
             method: req.method,
             headers: req.headers as HeadersInit,
             body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,

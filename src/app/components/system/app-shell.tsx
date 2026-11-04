@@ -199,7 +199,7 @@ function AppShell() {
 
           {import.meta.env.VITE_DEMO_MODE === "true" && (
             <div className="shrink-0 border-b border-line bg-mint px-3 py-2 text-center text-chip text-ink sm:px-4 md:px-7" role="note">
-              Demo · Fictional data · Sending disabled
+              Demo · Fictional data · Campaign sending disabled
             </div>
           )}
 

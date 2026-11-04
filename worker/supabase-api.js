@@ -1,3 +1,5 @@
+import { handleMetaWhatsAppRequest } from "./meta-whatsapp.js";
+
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
     status,
@@ -5765,6 +5767,7 @@ export async function handleApiRequest(request, env) {
   try {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, "") || "/";
+    if (path === "/api/meta-whatsapp") return await handleMetaWhatsAppRequest(request, env);
     if (isDemoMode(env)) {
       if (path.startsWith("/api/cron/")) return json({ ok: true, demo: true, skipped: true });
       if (request.method !== "GET" && request.method !== "HEAD"

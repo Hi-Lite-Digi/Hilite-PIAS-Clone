@@ -16,7 +16,7 @@ separate from the existing business projects. Schema and seed were loaded on
 4. Set these variables on the Vercel `hilite-outreach` project:
    - `SUPABASE_URL`: the new project's API URL.
    - `SUPABASE_SECRET_KEY`: the new project's server-side secret/service-role key.
-   - `DEMO_MODE=true`: disables external sending, discovery, and cron execution.
+   - `DEMO_MODE=true`: disables campaign sending, discovery, and cron execution.
    - `VITE_DEMO_MODE=true`: displays the fictional-data notice.
 5. Deploy the updated source, verify `/api/health`, and check both workspaces.
 
@@ -24,7 +24,12 @@ Never put the Supabase secret key in a `VITE_` variable or commit it to Git.
 Keep Gmail, WhatsApp relay, discovery-provider, and OpenAI credentials unset for
 the demo. The server blocks delivery routes in demo mode even if delivery
 credentials are accidentally added later. The displayed inbox connections are
-simulated; no Gmail or WhatsApp account is connected.
+simulated. A separate private WhatsApp test panel is available in RE-engage
+Settings; it requires a server-side Meta token and a private operator key.
+Manual test sending is disabled unless `META_TEST_SEND_ENABLED=true` is set.
+It can send only the fixed image template from the new number ending 4289,
+with an individually confirmed recipient. Fictional demo contacts are rejected.
+See `docs/pias-clone-bot-setup.md` for the remaining Meta setup.
 
 The seed provides 60 leads, six WhatsApp campaigns, 100 campaign recipients,
 72 WhatsApp messages, 24 HR prospects, four HR email campaigns, and eight
