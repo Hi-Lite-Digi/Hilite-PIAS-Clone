@@ -197,6 +197,12 @@ function AppShell() {
             </div>
           </header>
 
+          {import.meta.env.VITE_DEMO_MODE === "true" && (
+            <div className="shrink-0 border-b border-line bg-mint px-3 py-2 text-center text-chip text-ink sm:px-4 md:px-7" role="note">
+              Demo · Fictional data · Sending disabled
+            </div>
+          )}
+
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-slot="app-shell-outlet">
             <Suspense fallback={<RouteLoadingFallback />}>
               <PageTransition motionKey={getPageMotionKey(location.pathname)}>

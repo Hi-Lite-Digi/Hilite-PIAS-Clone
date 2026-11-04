@@ -17,6 +17,11 @@ const CAMPAIGN_REMINDER_BATCH_SIZE = 10;
 const WHATSAPP_CAMPAIGN_INTERVAL_SECONDS = 60;
 const WHATSAPP_CAMPAIGN_MAX_ATTEMPTS = 5;
 const HIHUNT_DAILY_EMAIL_LIMIT = 200;
+const isDemoMode = (env) => String(env.DEMO_MODE || "").toLowerCase() === "true";
+
+function demoDeliveryError() {
+  return Object.assign(new Error("Sending is disabled in this demo. All contacts and messages are fictional."), { status: 403 });
+}
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function assistantStatus(env, mode = null, model = null) {
@@ -84,6 +89,7 @@ async function createOpenAIResponse(env, body) {
 }
 
 async function hermesRelayFetch(env, path, init = {}, options = {}) {
+  if (isDemoMode(env)) throw demoDeliveryError();
   const relayUrl = String(env.HERMES_RELAY_URL || "").trim().replace(/\/$/, "");
   const relayToken = String(env.HERMES_RELAY_TOKEN || "").trim();
   if (!relayUrl || !relayToken) {
@@ -141,6 +147,9 @@ function wait(milliseconds) {
 }
 
 async function hermesStatus(env) {
+  if (isDemoMode(env)) {
+    return json({ configured: true, connected: true, provider: "Hermes", channel: "WhatsApp", accountName: "Hilite Demo (simulated)", deliveryReady: true, requirements: [] });
+  }
   const configured = Boolean(String(env.HERMES_RELAY_URL || "").trim() && String(env.HERMES_RELAY_TOKEN || "").trim());
   if (!configured) {
     return json({
@@ -986,6 +995,9 @@ async function createPosterSignedUrl(env, path) {
 }
 
 function emailSenderStatus(env) {
+  if (isDemoMode(env)) {
+    return { configured: true, provider: "Gmail", address: "demo@hilite.example", displayName: "Hilite Demo", requirement: null, senderValue: "Hilite Demo <demo@hilite.example>" };
+  }
   const address = primaryEmail(env.GMAIL_SENDER_EMAIL) || null;
   const displayName = String(env.GMAIL_SENDER_NAME || "Hilite")
     .replace(/[\r\n<>]/g, "")
@@ -1944,6 +1956,11 @@ function classifyEmailInterest(value) {
 }
 
 async function listEmailThreads(env) {
+  if (isDemoMode(env)) {
+    const threads = await supabaseJson(env, "/rest/v1/demo_email_threads?select=payload&order=updated_at.desc");
+    const data = threads.map(({ payload: { messages, ...summary } }) => summary);
+    return json({ data, total: data.length, unread: data.filter((thread) => thread.unread).length });
+  }
   const sender = emailSenderStatus(env);
   if (!sender.configured) return json({ data: [], total: 0, unread: 0 });
   const accessToken = await gmailAccessToken(env);
@@ -1969,6 +1986,10 @@ async function listEmailThreads(env) {
 }
 
 async function getEmailThread(threadId, env) {
+  if (isDemoMode(env)) {
+    const threads = await supabaseJson(env, `/rest/v1/demo_email_threads?id=eq.${encodeURIComponent(threadId)}&select=payload`);
+    return threads[0] ? json({ data: threads[0].payload }) : json({ error: "Email thread not found" }, 404);
+  }
   const sender = emailSenderStatus(env);
   if (!sender.configured) return json({ error: "Connect Gmail before opening email" }, 503);
   const accessToken = await gmailAccessToken(env);
@@ -3870,6 +3891,7 @@ function gmailMimeMessage({ from, to, subject, text, html = null, messageId, att
 }
 
 async function gmailAccessToken(env) {
+  if (isDemoMode(env)) throw demoDeliveryError();
   let response;
   try {
     response = await fetch("https://oauth2.googleapis.com/token", {
@@ -5736,13 +5758,21 @@ async function health(env) {
     headers: { Prefer: "count=exact" },
   });
   const range = response.headers.get("content-range") || "*/0";
-  return json({ ok: true, database: "connected", leads: Number(range.split("/")[1]) || 0, assistant: assistantStatus(env) });
+  return json({ ok: true, database: "connected", demo: isDemoMode(env), leads: Number(range.split("/")[1]) || 0, assistant: assistantStatus(env) });
 }
 
 export async function handleApiRequest(request, env) {
   try {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, "") || "/";
+    if (isDemoMode(env)) {
+      if (path.startsWith("/api/cron/")) return json({ ok: true, demo: true, skipped: true });
+      if (request.method !== "GET" && request.method !== "HEAD"
+        && (/\/(?:send|send-whatsapp|send-email|approve-batch|reply)$/.test(path)
+          || path === "/api/hr-discovery" || path.startsWith("/api/integrations/"))) {
+        return json({ error: demoDeliveryError().message, demo: true }, 403);
+      }
+    }
     if (request.method === "GET" && path === "/api/health") return await health(env);
     if (request.method === "POST" && path === "/api/unsubscribe") return await unsubscribeLead(request, env);
     if (request.method === "GET" && path === "/api/cron/campaign-reminders") {
