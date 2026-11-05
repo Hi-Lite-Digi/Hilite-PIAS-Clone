@@ -12,10 +12,10 @@ Verified in WhatsApp Manager on 5 November 2026:
 
 - New WhatsApp Business account: **HiLite Digital**, `1656774412758599`
 - Original phone display name: **PIAS_Demo**, rejected by Meta
-- Replacement **HiLite Digital** submitted for review. The user subsequently
-  requested **Hi-Hunt**; Meta currently disables editing while review is pending.
-  Submit **Hi-Hunt** when editing becomes available. It has not been submitted yet.
-- New phone number ID: `1442204225635652`, status **Pending**
+- Replacement **HiLite Digital** was approved. The user then requested
+  **Hi-Hunt**; that new display-name request is now submitted and **In Review**.
+  The approved name remains visible until Meta approves its replacement.
+- New phone number ID: `1442204225635652`, status **Connected**
 
 The account's internal name differs from the phone display name. Its phone
 inventory confirms this is the new number, rather than any older business account.
@@ -84,14 +84,16 @@ The isolated Employee system user **PIAS_Clone Bot Demo** has access only to the
 new app and new WhatsApp account. Meta's token debugger confirms a valid System
 User token for this app with **Expires: Never**, as requested by the user.
 The token and a separate operator key are saved as Production Secrets in Vercel.
-The deployment's live connection check confirms **Number: PENDING · Template:
-APPROVED**. No payment method has been added.
+The deployment's live connection check confirms **Number: CONNECTED · Template:
+APPROVED**, and the manual-test panel shows **Ready**. No payment method has been added.
 
-The remaining registration request is prepared in
+The user completed registration through
 [Meta's API Playground](https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-phone-number/phone-number-registration)
-for the new phone ID only. The user must enter their own six-digit WhatsApp
-security PIN and submit the request directly in Meta. Never choose, enter, store,
-or log that PIN for the user. Registration has not yet been verified successful.
+for the new phone ID only, entering their own PIN and submitting the request.
+Both WhatsApp Manager and Hilite's actual API check confirm the number is
+Connected. The PIN was entered only in Meta; it was not read or saved by the
+agent. Registration form credentials were cleared after verification. No repeat
+registration is needed.
 
 After setup, enter the private test key, click **Check bot**, enter a recipient
 and first name, confirm the recipient agreed to receive the test, and send one
@@ -142,8 +144,7 @@ The existing public Hilite campaign demo remains simulated. The private manual
 test uses Meta Cloud API and does not enable the Hermes campaign send flow.
 No real message has been sent as part of this setup.
 
-Remaining: registration/connection of the new number, submission and review of
-the requested **Hi-Hunt** display name when Meta unlocks edits, and a recipient
+Remaining: Meta's review of the submitted **Hi-Hunt** display name and a recipient
 chosen when the user wants to send a test. No recipient is required to create or approve a
 template. An approved template can be reused for different recipients who have
 opted in; each actual send still specifies a destination. See
