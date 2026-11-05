@@ -107,7 +107,7 @@ test("a network failure during the send is reported without retrying or claiming
 test("the routed endpoint stays private in demo mode even if a Meta token is accidentally present", async () => {
   const response = await handleApiRequest(request(), { DEMO_MODE: "true", META_ACCESS_TOKEN: "test-only" });
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /private WhatsApp test connection/);
+  assert.match((await response.json()).error, /Workspace sign-in needs server setup/);
 });
 
 const privateLead = { id: "11111111-1111-4111-8111-111111111111", name: "Demo Tester", phone: "447700900123", consented: true };

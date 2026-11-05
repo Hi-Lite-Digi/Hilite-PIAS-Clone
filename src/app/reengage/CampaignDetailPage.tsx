@@ -45,6 +45,7 @@ import {
   getCampaignStatusAction,
   type CampaignUpdateSection,
 } from "./campaign-view";
+import TemplateCampaignPage from "./TemplateCampaignPage";
 
 type DetailTab = "message" | "audience" | "delivery" | "recipients" | "replies";
 
@@ -67,6 +68,11 @@ function recipientStatus(campaign: CampaignRecord, index: number) {
 }
 
 function CampaignDetailPage() {
+  if (import.meta.env.VITE_DEMO_MODE === "true") return <TemplateCampaignPage />;
+  return <FullCampaignDetailPage />;
+}
+
+function FullCampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<CampaignRecord | null>(null);
   const [sample, setSample] = useState(false);

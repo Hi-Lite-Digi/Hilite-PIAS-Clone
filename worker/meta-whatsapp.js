@@ -1,8 +1,8 @@
-import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { buildTestMessage } from "../scripts/test-meta-template.mjs";
 import { createMetaTestStore } from "./meta-test-store.js";
+import { checkWorkspaceOrigin, requireWorkspaceAccess, handleWorkspaceSession } from "./workspace-session.js";
 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
 const WABA_ID = "1656774412758599";
@@ -24,13 +24,7 @@ function contactName(value) {
   return name;
 }
 
-function authorise(request, env) {
-  const expected = String(env.META_TEST_OPERATOR_TOKEN || "");
-  if (expected.length < 32) throw failure("The private WhatsApp test connection needs server setup.", 503);
-  const supplied = String(request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
-  const a = Buffer.from(expected);
-  const b = Buffer.from(supplied);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw failure("Enter the operator key to use the WhatsApp test connection.", 401);
+function checkMetaSetup(env) {
   if (!env.META_ACCESS_TOKEN) throw failure("The new bot's Meta access token is not configured.", 503);
   if ((env.META_WABA_ID && env.META_WABA_ID !== WABA_ID) || (env.META_PHONE_NUMBER_ID && env.META_PHONE_NUMBER_ID !== PHONE_ID)) {
     throw failure("This connection accepts only the new account and number ending 4289.", 503);
@@ -89,7 +83,7 @@ export async function getMetaTestStatus(env, fetcher = fetch) {
   };
 }
 
-async function sendTemplate(env, recipient, firstName, fetcher, loadPoster) {
+export async function sendTemplate(env, recipient, firstName, fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url))) {
   const media = new FormData();
   media.set("messaging_product", "whatsapp");
   media.set("type", "image/png");
@@ -102,16 +96,17 @@ async function sendTemplate(env, recipient, firstName, fetcher, loadPoster) {
   return { accepted: true, messageId: result.messages[0].id, recipient: `Number ending ${recipient.slice(-4)}`, deliveryConfirmed: false };
 }
 
-export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env) } = {}) {
+export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env), sessionStore } = {}) {
   try {
     if (request.method !== "POST") return json({ error: "Use POST for the private WhatsApp test connection." }, 405);
-    const origin = request.headers.get("origin");
-    if (origin && origin !== new URL(request.url).origin) return json({ error: "This request must come from Hilite." }, 403);
-    authorise(request, env);
+    checkWorkspaceOrigin(request);
     const raw = await request.text();
     if (raw.length > 2048) throw failure("The test request is too large.", 413);
     let input;
     try { input = JSON.parse(raw); } catch { throw failure("Enter valid test details."); }
+    if (["login", "session", "logout"].includes(input?.action)) return await handleWorkspaceSession(request, env, input.action, sessionStore);
+    await requireWorkspaceAccess(request, env, sessionStore);
+    checkMetaSetup(env);
     if (!input || !["status", "send", "list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"].includes(input.action)) throw failure("Choose a connection check or a private campaign action.");
     if (input.action === "list_leads") return json({ data: await store.listLeads() });
     if (input.action === "list_campaigns") return json({ data: await store.listCampaigns() });

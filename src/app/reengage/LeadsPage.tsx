@@ -29,7 +29,6 @@ import { LeadDetailDrawer } from "./LeadDetailDrawer";
 import { LeadFormDrawer } from "./LeadFormDrawer";
 import { LeadImportDrawer } from "./LeadImportDrawer";
 import { leadMatchesCampaignAudience } from "./campaign-view";
-import { PrivateTestLeadsPage } from "./PrivateCampaignWorkspace";
 
 const DEFAULT_LEAD_PAGE_SIZE = 10;
 
@@ -39,12 +38,6 @@ function getLeadCampaigns(lead: LeadRecord, campaigns: readonly CampaignRecord[]
 }
 
 function LeadsPage() {
-  const [params] = useSearchParams();
-  if (import.meta.env.VITE_DEMO_MODE === "true" && params.get("view") !== "demo") return <PrivateTestLeadsPage />;
-  return <DemoLeadsPage />;
-}
-
-function DemoLeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
@@ -209,7 +202,9 @@ function DemoLeadsPage() {
     {
       key: "campaign",
       header: "Campaign",
-      cell: (lead) => getLeadCampaigns(lead, campaigns, threads)[0]?.title ?? "—",
+      cell: (lead) => import.meta.env.VITE_DEMO_MODE === "true"
+        ? <Button asChild size="sm" variant="secondary"><Link to={`/reengage/campaigns/new?lead=${lead.id}`}>Create campaign</Link></Button>
+        : getLeadCampaigns(lead, campaigns, threads)[0]?.title ?? "—",
       sortValue: (lead) => getLeadCampaigns(lead, campaigns, threads)[0]?.title,
       hideOnMobile: true,
     },
@@ -234,8 +229,7 @@ function DemoLeadsPage() {
     <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 md:px-7 md:py-7" data-slot="reengage-leads">
       <div className="space-y-6">
         <PageHeader
-          actions={<>{import.meta.env.VITE_DEMO_MODE === "true" && <Button asChild variant="secondary"><Link to="/reengage/leads">Test leads</Link></Button>}<Button onClick={() => setImportOpen(true)} variant="secondary"><Upload aria-hidden="true" className="size-4" strokeWidth={1.75} />Upload leads</Button><Button onClick={() => setAddOpen(true)}><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />Add lead</Button></>}
-          subtitle="Search, segment, and maintain the people available for WhatsApp campaigns."
+          actions={<><Button onClick={() => setImportOpen(true)} variant="secondary"><Upload aria-hidden="true" className="size-4" strokeWidth={1.75} />Upload leads</Button><Button onClick={() => setAddOpen(true)}><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />Add lead</Button></>}
           title="Leads"
         />
 

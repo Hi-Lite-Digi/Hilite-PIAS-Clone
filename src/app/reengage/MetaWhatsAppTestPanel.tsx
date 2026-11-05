@@ -10,7 +10,7 @@ type Connection = { ready: boolean; sender: string; senderStatus: string; templa
 const inputClass = "mt-2 h-11 w-full rounded-control border border-line bg-surface px-3 text-body text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
 
 export default function MetaWhatsAppTestPanel() {
-  const { operatorKey, setOperatorKey } = useMetaTest();
+  const { operatorKey, setOperatorKey, authenticated, logout, request: workspaceRequest } = useMetaTest();
   const [recipient, setRecipient] = useState("");
   const [firstName, setFirstName] = useState("");
   const [consented, setConsented] = useState(false);
@@ -23,6 +23,7 @@ export default function MetaWhatsAppTestPanel() {
   const body = definition.components.find(component => component.type === "BODY")?.text || "";
 
   async function request(action: "status" | "send") {
+    if (authenticated) return workspaceRequest<Connection & { accepted?: boolean }>(action, action === "send" ? { recipient, firstName, confirmed: consented } : {});
     const response = await fetch("/api/meta-whatsapp", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${operatorKey.trim()}` },
@@ -59,13 +60,13 @@ export default function MetaWhatsAppTestPanel() {
   return (
     <Card id="whatsapp-test" title="WhatsApp test · Hi-Hunt" action={<StatusPill label={connection?.ready ? "Ready" : "Locked"} status={connection?.ready ? "done" : "paused"} />}>
       <p className="mb-5 text-label text-ink-2">Send the approved CPF image template from the new number ending 4289.</p>
-      <p className="mb-5 text-label"><Link className="underline underline-offset-4" to="/reengage/leads">Add a private lead</Link>, then <Link className="underline underline-offset-4" to="/reengage/campaigns">create a one-person test campaign</Link>.</p>
+      <p className="mb-5 text-label"><Link className="underline underline-offset-4" to="/reengage/leads">Manage leads</Link> · <Link className="underline underline-offset-4" to="/reengage/campaigns/new">Create campaign</Link></p>
       <form className="space-y-5" onSubmit={event => { event.preventDefault(); if (connection?.ready && consented && !busy) setConfirmOpen(true); }}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        {authenticated ? <div className="flex flex-wrap items-center justify-between gap-3"><span className="text-label text-ink-2">Signed in on this device</span><div className="flex gap-2"><Button loading={busy === "check"} onClick={() => void check()} type="button" variant="secondary">Check bot</Button><Button onClick={() => void logout().catch(cause => setError(cause.message))} type="button" variant="ghost">Sign out</Button></div></div> : <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="min-w-0 flex-1 text-label font-medium text-ink-2" htmlFor="meta-operator-key"><span className="inline-flex items-center gap-2"><LockKeyhole aria-hidden="true" className="size-4" />Private test key</span><input autoComplete="off" className={inputClass} disabled={Boolean(busy)} id="meta-operator-key" onChange={event => { setOperatorKey(event.target.value); setConnection(null); setError(null); setKeyCopied(false); }} required type="password" value={operatorKey} /></label>
           <Button disabled={!operatorKey.trim() || Boolean(busy)} onClick={() => void copyKey()} size="lg" type="button" variant="secondary"><Copy aria-hidden="true" className="size-4" />{keyCopied ? "Copied" : "Copy key"}</Button>
           <Button disabled={!operatorKey.trim() || Boolean(busy)} loading={busy === "check"} onClick={() => void check()} size="lg" type="button" variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Check bot</Button>
-        </div>
+        </div>}
         {connection && <div aria-live="polite" className="rounded-control bg-surface-2 p-4 text-label text-ink-2"><p>Number: {connection.senderStatus} · Template: {connection.templateStatus}</p>{connection.requirements.length > 0 && <ul className="mt-2 list-inside list-disc space-y-1">{connection.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul>}</div>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-label font-medium text-ink-2" htmlFor="meta-test-recipient">Recipient number<input autoComplete="tel" className={inputClass} disabled={Boolean(busy)} id="meta-test-recipient" onChange={event => { setRecipient(event.target.value); setAccepted(false); }} placeholder="+65 …" required type="tel" value={recipient} /></label>

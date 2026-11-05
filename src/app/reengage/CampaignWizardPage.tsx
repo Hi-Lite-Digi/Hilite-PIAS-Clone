@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, CircleAlert, FileImage, FileText, Sparkles, Upload } from "lucide-react";
-import { Link, useBlocker, useNavigate, useSearchParams, type BlockerFunction } from "react-router";
+import { Link, useBlocker, useNavigate, type BlockerFunction } from "react-router";
 import {
   analyzePoster,
   createCampaign,
@@ -44,7 +44,7 @@ import {
 
 import CampaignDeliveryFields from "./CampaignDeliveryFields";
 import { loadReengageSettings } from "./settings-model";
-import { PrivateTestCampaignsPage } from "./PrivateCampaignWorkspace";
+import TemplateCampaignPage from "./TemplateCampaignPage";
 
 type Step = "upload" | "message" | "audience" | "delivery" | "review";
 const STEPS: { key: Step; label: string }[] = [
@@ -65,8 +65,7 @@ function getPosterFromClipboard(clipboardData: DataTransfer | null) {
 }
 
 function CampaignWizardPage() {
-  const [params] = useSearchParams();
-  if (import.meta.env.VITE_DEMO_MODE === "true" && params.get("view") !== "demo") return <PrivateTestCampaignsPage />;
+  if (import.meta.env.VITE_DEMO_MODE === "true") return <TemplateCampaignPage />;
   return <DemoCampaignWizardPage />;
 }
 

@@ -4,6 +4,7 @@ import { AppShell } from "./components/system/app-shell";
 import { getWorkspaceRoot, resolveLegacyRedirect } from "./navigation";
 import { useBadges } from "./layout/BadgesContext";
 import { MetaTestProvider } from "./reengage/MetaTestContext";
+import { WorkspaceGate } from "./reengage/WorkspaceGate";
 
 const ReengageHomePage = lazy(() => import("./reengage/HomePage"));
 const ReengageLeadsPage = lazy(() => import("./reengage/LeadsPage"));
@@ -79,7 +80,7 @@ const APP_ROUTES: RouteObject[] = [
   { element: <UnsubscribePage />, id: "unsubscribe", path: "/unsubscribe/:token" },
   { element: <PrivacyPage />, id: "privacy", path: "/privacy" },
   {
-    element: <MetaTestProvider><AppShell /></MetaTestProvider>,
+    element: <MetaTestProvider><WorkspaceGate><AppShell /></WorkspaceGate></MetaTestProvider>,
     id: "shell",
     path: "/",
     children: [

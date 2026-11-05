@@ -22,5 +22,6 @@ export default async function handler(req, res) {
   const response = await handleApiRequest(request, process.env);
   res.statusCode = response.status;
   response.headers.forEach((value, key) => res.setHeader(key, value));
+  res.setHeader("Cache-Control", "no-store");
   res.end(Buffer.from(await response.arrayBuffer()));
 }

@@ -61,38 +61,44 @@ was created or changed there.
 
 ## Manual test in Hilite
 
-### One-person campaigns from Leads
+### Normal Leads and Campaigns
 
-In this demo, **Leads** and **Campaigns** open the private test workspace by
-default. Unlock it with the private test key. The key stays in tab memory while
-navigating between Leads, Campaigns and Settings; reload or Lock clears it.
+The demo uses the regular Leads table, Add/Edit drawer, filters and spreadsheet
+upload. Contacts and campaign drafts persist in the normal database tables.
+The sole outbound message choice is the approved CPF image template above.
 
-1. In Leads, add the person's name and WhatsApp number and confirm consent.
-2. Choose **Create campaign** on that lead, or select the lead in Campaigns.
-3. Preview the approved CPF invitation and original poster, then save the campaign.
-4. Choose **Review & send**, verify the one recipient, and confirm the real send.
+Sign in once with the workspace key. A host-only Secure, HttpOnly, SameSite=Strict
+cookie keeps this browser signed in for 30 days, including after refresh. Only a
+SHA-256 hash of its random session token is stored in `workspace_sessions`.
+Sign out revokes that session; rotating the operator key revokes all sessions.
+Neither the operator key nor Meta token is saved in browser storage or a URL.
+All workspace data APIs now require authorization, including reads and imports.
 
-Private contacts and campaign history use `meta_test_leads` and
-`meta_test_campaigns`, separate from the public fictional data. RLS is enabled;
-`anon` and `authenticated` have no table privileges. Every server action requires
-the operator key. Each campaign references exactly one private lead, and an atomic
-draft-to-sending claim prevents concurrent or repeated sends. Uncertain outcomes
-are locked for review and are never retried automatically. Meta acceptance is
-recorded separately from confirmed delivery.
+1. In **Leads**, choose **Add lead** or **Upload leads** and save contacts normally.
+2. Choose **Create campaign** for a lead, or **New campaign** from Campaigns.
+3. Name the campaign, select one or more contacts, preview the fixed invitation
+   and original poster, and save the draft.
+4. Confirm consent, choose **Review & send**, and confirm the selected recipients.
 
-**View demo leads/campaigns** opens the original fictional dataset. Those
-campaign queues, reminders and discovery still cannot send. Private campaigns
-use only the fixed approved image template and the new sender ending 4289.
+Fictional sample phone numbers cannot receive messages. The server pins the
+template, poster and new sender ending 4289, regardless of client input. Each
+recipient gets an atomic draft-to-sending claim in `meta_campaign_deliveries`.
+Concurrent requests cannot send the same recipient twice. Unknown/failed attempts
+are never automatically retried; explicitly resumed batches send only recipients
+that have not yet been attempted. Accepted outgoing messages appear in the normal
+inbox history; acceptance is distinct from confirmed delivery.
 
-Migration: `20261105152610_private_whatsapp_test_campaigns.sql`.
+All contact/session/delivery tables have RLS and no public client grants. The
+old private-test tables are retained for compatibility, but the separate test
+workspace is no longer the application's Leads/Campaigns workflow.
+Migration: `20261105175731_normal_workspace_sessions_and_template_delivery.sql`.
 
 ### Direct individual test
 
-RE-engage Settings contains a **WhatsApp test · Hi-Hunt** panel. Its
-private test key is separate from the Meta access token. The test key stays in
-browser memory and is not saved to local storage. **Copy key** lets the operator
-save it privately before closing the tab. Actual recipients are not
-written into the public fictional-data inbox.
+RE-engage Settings contains a **WhatsApp test · Hi-Hunt** panel. It uses the
+saved workspace sign-in and provides connection checking and an optional direct
+individual test with the same approved template. Its signed-in state includes
+**Sign out**; no separate key is needed for each page.
 
 Server setup requires these Vercel settings:
 
@@ -101,8 +107,8 @@ Server setup requires these Vercel settings:
 - `META_TEST_SEND_ENABLED=true` (Config): enable only after approving the connection
 
 The new WABA and phone IDs are pinned in the server. Conflicting environment
-IDs are rejected. `/api/meta-whatsapp` requires the private key for every
-request, rejects foreign origins, and sends at most one message per confirmed
+IDs are rejected. `/api/meta-whatsapp` requires an authorized workspace session
+or the private key, rejects foreign origins, and sends at most one message per confirmed
 request. Connection checks do not upload media or send messages. A send first
 checks the new phone is `CONNECTED` and the exact English image template is
 `APPROVED`, then uploads the original poster and sends that media ID.
@@ -122,13 +128,14 @@ Connected. The PIN was entered only in Meta; it was not read or saved by the
 agent. Registration form credentials were cleared after verification. No repeat
 registration is needed.
 
-After setup, enter the private test key, click **Check bot**, enter a recipient
+After signing in, click **Check bot**, enter a recipient
 and first name, confirm the recipient agreed to receive the test, and send one
 message. The confirmation notes that Meta charges may apply. Meta acceptance is
 shown separately from delivery confirmation; verify receipt on the recipient's
 phone. Requests are never automatically retried.
 
-The public demo's campaign queue, reminders, and discovery remain disabled.
+The legacy Hermes/free-text send paths, automatic reminders, and discovery
+remain disabled. Normal confirmed campaigns use Meta's approved template path.
 Live inbound replies/webhooks are not yet connected to Hilite's demo inbox.
 
 ## Optional command-line test
@@ -167,8 +174,8 @@ image configuration before contacting Meta. The review sample does not
 automatically attach the poster to a send; each send needs its media ID or URL.
 See [Meta's template object example](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/types/TemplateObject/).
 
-The existing public Hilite campaign demo remains simulated. Private one-person
-campaigns and direct tests use Meta Cloud API and do not enable the Hermes campaign send flow.
+The normal demo workspace is private. Confirmed campaigns and direct tests use
+Meta Cloud API with the one fixed template and do not enable Hermes sending.
 No real message has been sent as part of this setup.
 
 Remaining: Meta's review of the submitted **Hi-Hunt** display name and a recipient

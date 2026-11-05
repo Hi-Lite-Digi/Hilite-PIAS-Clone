@@ -48,10 +48,12 @@ test("demo email inbox reads the seeded database instead of connecting to Gmail"
     return new Response(JSON.stringify([{ payload: thread }]), { headers: { "content-type": "application/json" } });
   }) as typeof fetch;
   try {
-    const env = { DEMO_MODE: "true", SUPABASE_URL: "https://demo-project.supabase.co", SUPABASE_SECRET_KEY: "test-only" };
-    const listing = await handleApiRequest(new Request("https://demo.example/api/email-threads"), env);
+    const key = "test-only-workspace-key-at-least-32-characters";
+    const env = { DEMO_MODE: "true", SUPABASE_URL: "https://demo-project.supabase.co", SUPABASE_SECRET_KEY: "test-only", META_TEST_OPERATOR_TOKEN: key };
+    const headers = { authorization: `Bearer ${key}` };
+    const listing = await handleApiRequest(new Request("https://demo.example/api/email-threads", { headers }), env);
     assert.deepEqual(await listing.json(), { data: [{ id: thread.id, subject: thread.subject, unread: true }], total: 1, unread: 1 });
-    const detail = await handleApiRequest(new Request("https://demo.example/api/email-threads/demo-email-1"), env);
+    const detail = await handleApiRequest(new Request("https://demo.example/api/email-threads/demo-email-1", { headers }), env);
     assert.deepEqual(await detail.json(), { data: thread });
     assert.equal(requests.length, 2);
   } finally {

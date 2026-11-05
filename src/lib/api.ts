@@ -55,6 +55,7 @@ export type AssistantStatus = {
 };
 
 export type CampaignAudience = {
+  template?: string;
   ageBands: string[];
   minAge?: number | null;
   maxAge?: number | null;
@@ -103,6 +104,28 @@ export type CampaignRecord = {
   created_at: string;
   updated_at: string;
 };
+
+export type TemplateDelivery = {
+  id: string;
+  campaign_id: string;
+  lead_id: number;
+  phone: string;
+  status: "draft" | "sending" | "accepted" | "failed" | "unknown" | "suppressed";
+  failure_reason: string | null;
+  lead: Pick<LeadRecord, "id" | "name" | "phone" | "subscribed" | "struck">;
+};
+
+export function getTemplateCampaign(id: string) {
+  return api<{ data: CampaignRecord; deliveries: TemplateDelivery[]; leads: Pick<LeadRecord, "id" | "name" | "phone" | "email" | "subscribed" | "struck">[]; fixedTemplate: boolean }>(`/api/campaigns/${encodeURIComponent(id)}/template`);
+}
+
+export function startTemplateCampaign(id: string) {
+  return api<{ deliveries: TemplateDelivery[] }>(`/api/campaigns/${encodeURIComponent(id)}/start-template`, { method: "POST", body: JSON.stringify({ confirmed: true }) });
+}
+
+export function sendTemplateCampaignRecipient(id: string, deliveryId: string) {
+  return api<{ accepted: boolean; trackingSaved: boolean; deliveryConfirmed: boolean }>(`/api/campaigns/${encodeURIComponent(id)}/send-template`, { method: "POST", body: JSON.stringify({ deliveryId, confirmed: true }) });
+}
 
 export type AssistantLeadPreview = {
   id: number;
@@ -364,6 +387,8 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, {
+      cache: "no-store",
+      credentials: "same-origin",
       ...init,
       headers: { "content-type": "application/json", ...(init?.headers || {}) },
     });
@@ -381,6 +406,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
       throw new Error("HiHunt received an invalid service response. Please try again");
     }
   }
+  if (response.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event("hilite-session-expired"));
   if (!response.ok) throw new Error(body.error || "The request could not be completed");
   return body as T;
 }

@@ -1,4 +1,6 @@
 import { handleMetaWhatsAppRequest } from "./meta-whatsapp.js";
+import { requireWorkspaceAccess, workspaceProtectionEnabled, createWorkspaceDb } from "./workspace-session.js";
+import { handleTemplateCampaignRequest } from "./template-campaigns.js";
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -3142,6 +3144,7 @@ async function createLead(request, env) {
     remarks: String(input.remarks || "").trim().slice(0, 2000) || null,
     source_tabs: source,
     import_batch: "HiHunt manual entries",
+    first_captured: new Date().toISOString().slice(0, 10),
   };
   const response = await supabaseFetch(env, "/rest/v1/leads?select=id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs", {
     method: "POST",
@@ -3351,6 +3354,16 @@ async function listCampaigns(env) {
   const response = await supabaseFetch(env, `/rest/v1/campaigns?${params}`);
   const campaigns = await response.json();
   const counts = await campaignDeliveryCounts(env, campaigns.map((campaign) => String(campaign.id)));
+  const fixed = campaigns.filter(campaign => campaign.audience?.template === "pias_clone_cpf_webinar_image");
+  if (workspaceProtectionEnabled(env) && fixed.length) {
+    for (const campaign of fixed) counts.set(String(campaign.id), { total: campaign.audience_count, sent: 0 });
+    const db = createWorkspaceDb(env);
+    for (let offset = 0; ; offset += 1000) {
+      const rows = await db(`meta_campaign_deliveries?campaign_id=in.(${fixed.map(item => item.id).join(",")})&select=campaign_id,status&order=id&offset=${offset}&limit=1000`);
+      for (const row of rows) if (row.status === "accepted") counts.get(String(row.campaign_id)).sent += 1;
+      if (rows.length < 1000) break;
+    }
+  }
   return json({
     data: campaigns.map((campaign) => {
       const delivery = counts.get(String(campaign.id)) || { total: 0, sent: 0 };
@@ -5775,6 +5788,15 @@ export async function handleApiRequest(request, env) {
           || path === "/api/hr-discovery" || path.startsWith("/api/integrations/"))) {
         return json({ error: demoDeliveryError().message, demo: true }, 403);
       }
+    }
+    // The regular application now stores real contacts. Authenticate every data
+    // route, including reads and exports; only health/unsubscribe/cron are public.
+    if (workspaceProtectionEnabled(env) && path !== "/api/health" && path !== "/api/unsubscribe" && !path.startsWith("/api/cron/")) {
+      await requireWorkspaceAccess(request, env);
+      const fixedMutation = (path === "/api/campaigns" && request.method === "POST")
+        || (/^\/api\/campaigns\/[0-9a-f-]+$/.test(path) && request.method === "PATCH")
+        || /^\/api\/campaigns\/[0-9a-f-]+\/(template|start-template|send-template)$/.test(path);
+      if (fixedMutation) return await handleTemplateCampaignRequest(request, env);
     }
     if (request.method === "GET" && path === "/api/health") return await health(env);
     if (request.method === "POST" && path === "/api/unsubscribe") return await unsubscribeLead(request, env);
