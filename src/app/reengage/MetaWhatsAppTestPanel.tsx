@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LockKeyhole, RefreshCw, SendHorizontal } from "lucide-react";
+import { Copy, LockKeyhole, RefreshCw, SendHorizontal } from "lucide-react";
 import { Button, Card, ConfirmDialog, StatusPill } from "../components/system";
 import definition from "../../../config/pias-clone-demo-template.json";
 import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
@@ -17,6 +17,7 @@ export default function MetaWhatsAppTestPanel() {
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
   const body = definition.components.find(component => component.type === "BODY")?.text || "";
 
   async function request(action: "status" | "send") {
@@ -37,6 +38,11 @@ export default function MetaWhatsAppTestPanel() {
     finally { setBusy(null); }
   }
 
+  async function copyKey() {
+    try { await navigator.clipboard.writeText(operatorKey.trim()); setKeyCopied(true); }
+    catch { setError("Your browser could not copy the key. Select the key and copy it manually."); }
+  }
+
   async function send() {
     setConfirmOpen(false); setBusy("send"); setError(null); setAccepted(false);
     try {
@@ -49,11 +55,12 @@ export default function MetaWhatsAppTestPanel() {
   }
 
   return (
-    <Card id="whatsapp-test" title="WhatsApp test · PIAS_Clone Bot" action={<StatusPill label={connection?.ready ? "Ready" : "Locked"} status={connection?.ready ? "done" : "paused"} />}>
+    <Card id="whatsapp-test" title="WhatsApp test · Hi-Hunt" action={<StatusPill label={connection?.ready ? "Ready" : "Locked"} status={connection?.ready ? "done" : "paused"} />}>
       <p className="mb-5 text-label text-ink-2">Sends one real message from the new number ending 4289. Demo campaigns remain disabled.</p>
       <form className="space-y-5" onSubmit={event => { event.preventDefault(); if (connection?.ready && consented && !busy) setConfirmOpen(true); }}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 text-label font-medium text-ink-2" htmlFor="meta-operator-key"><span className="inline-flex items-center gap-2"><LockKeyhole aria-hidden="true" className="size-4" />Private test key</span><input autoComplete="off" className={inputClass} disabled={Boolean(busy)} id="meta-operator-key" onChange={event => { setOperatorKey(event.target.value); setConnection(null); setError(null); }} required type="password" value={operatorKey} /></label>
+          <label className="min-w-0 flex-1 text-label font-medium text-ink-2" htmlFor="meta-operator-key"><span className="inline-flex items-center gap-2"><LockKeyhole aria-hidden="true" className="size-4" />Private test key</span><input autoComplete="off" className={inputClass} disabled={Boolean(busy)} id="meta-operator-key" onChange={event => { setOperatorKey(event.target.value); setConnection(null); setError(null); setKeyCopied(false); }} required type="password" value={operatorKey} /></label>
+          <Button disabled={!operatorKey.trim() || Boolean(busy)} onClick={() => void copyKey()} size="lg" type="button" variant="secondary"><Copy aria-hidden="true" className="size-4" />{keyCopied ? "Copied" : "Copy key"}</Button>
           <Button disabled={!operatorKey.trim() || Boolean(busy)} loading={busy === "check"} onClick={() => void check()} size="lg" type="button" variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Check bot</Button>
         </div>
         {connection && <div aria-live="polite" className="rounded-control bg-surface-2 p-4 text-label text-ink-2"><p>Number: {connection.senderStatus} · Template: {connection.templateStatus}</p>{connection.requirements.length > 0 && <ul className="mt-2 list-inside list-disc space-y-1">{connection.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul>}</div>}

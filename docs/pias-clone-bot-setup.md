@@ -1,4 +1,4 @@
-# PIAS_Clone Bot
+# Hi-Hunt WhatsApp demo
 
 Meta app **PIAS_Clone Bot** was created on 4 November 2026 under the verified
 **HiLite Digital** business portfolio. App ID: `1629215102235593`.
@@ -8,10 +8,13 @@ The user entered and completed verification for a **new** WhatsApp sender number
 ending **4289**. Existing business phone numbers must not be edited, disconnected,
 re-registered, or used for tests.
 
-Verified in WhatsApp Manager on 4 November 2026:
+Verified in WhatsApp Manager on 5 November 2026:
 
 - New WhatsApp Business account: **HiLite Digital**, `1656774412758599`
-- New phone display name: **PIAS_Demo**, **In Review**
+- Original phone display name: **PIAS_Demo**, rejected by Meta
+- Replacement **HiLite Digital** submitted for review. The user subsequently
+  requested **Hi-Hunt**; Meta currently disables editing while review is pending.
+  Submit **Hi-Hunt** when editing becomes available. It has not been submitted yet.
 - New phone number ID: `1442204225635652`, status **Pending**
 
 The account's internal name differs from the phone display name. Its phone
@@ -58,9 +61,10 @@ was created or changed there.
 
 ## Manual test in Hilite
 
-RE-engage Settings contains a **WhatsApp test · PIAS_Clone Bot** panel. Its
+RE-engage Settings contains a **WhatsApp test · Hi-Hunt** panel. Its
 private test key is separate from the Meta access token. The test key stays in
-browser memory and is not saved to local storage. Actual recipients are not
+browser memory and is not saved to local storage. **Copy key** lets the operator
+save it privately before closing the tab. Actual recipients are not
 written into the public fictional-data inbox.
 
 Server setup requires these Vercel settings:
@@ -76,10 +80,18 @@ request. Connection checks do not upload media or send messages. A send first
 checks the new phone is `CONNECTED` and the exact English image template is
 `APPROVED`, then uploads the original poster and sends that media ID.
 
-The image template is active, but the new phone was last observed **Pending**
-with display name **In Review**. Meta access permissions, server credentials,
-and registration still need completion before a live test. No token or operator
-key has been provisioned yet. No payment method has been added.
+The isolated Employee system user **PIAS_Clone Bot Demo** has access only to the
+new app and new WhatsApp account. Meta's token debugger confirms a valid System
+User token for this app with **Expires: Never**, as requested by the user.
+The token and a separate operator key are saved as Production Secrets in Vercel.
+The deployment's live connection check confirms **Number: PENDING · Template:
+APPROVED**. No payment method has been added.
+
+The remaining registration request is prepared in
+[Meta's API Playground](https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-phone-number/phone-number-registration)
+for the new phone ID only. The user must enter their own six-digit WhatsApp
+security PIN and submit the request directly in Meta. Never choose, enter, store,
+or log that PIN for the user. Registration has not yet been verified successful.
 
 After setup, enter the private test key, click **Check bot**, enter a recipient
 and first name, confirm the recipient agreed to receive the test, and send one
@@ -130,9 +142,9 @@ The existing public Hilite campaign demo remains simulated. The private manual
 test uses Meta Cloud API and does not enable the Hermes campaign send flow.
 No real message has been sent as part of this setup.
 
-Remaining: Meta approval/connection of the new number, server-only access
-credentials for the new bot, and a recipient chosen when the
-user wants to send a test. No recipient is required to create or approve a
+Remaining: registration/connection of the new number, submission and review of
+the requested **Hi-Hunt** display name when Meta unlocks edits, and a recipient
+chosen when the user wants to send a test. No recipient is required to create or approve a
 template. An approved template can be reused for different recipients who have
 opted in; each actual send still specifies a destination. See
 [WhatsApp's Business Messaging Policy](https://business.whatsapp.com/policy).

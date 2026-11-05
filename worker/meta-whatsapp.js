@@ -19,7 +19,7 @@ function authorise(request, env) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) throw failure("Enter the operator key to use the WhatsApp test connection.", 401);
   if (!env.META_ACCESS_TOKEN) throw failure("The new bot's Meta access token is not configured.", 503);
   if ((env.META_WABA_ID && env.META_WABA_ID !== WABA_ID) || (env.META_PHONE_NUMBER_ID && env.META_PHONE_NUMBER_ID !== PHONE_ID)) {
-    throw failure("This connection accepts only the new PIAS_Demo account and number.", 503);
+    throw failure("This connection accepts only the new account and number ending 4289.", 503);
   }
 }
 
