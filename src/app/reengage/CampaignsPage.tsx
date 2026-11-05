@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CircleAlert, Mail, Megaphone, MessageCircle, Plus, Trash2 } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { deleteCampaign, getCampaigns, type CampaignRecord, type ReplyConversationRecord } from "../../lib/api";
 import { getThreads } from "../../lib/stubs";
 import {
@@ -19,8 +19,15 @@ import {
 } from "../components/system";
 import { audienceSummary, campaignAttendanceCount, campaignAttendanceTotal, campaignProgress, campaignReplyCount, campaignStatus } from "./campaign-view";
 import { campaignDelivery, PARTICIPANT_REMINDER_PRESETS } from "../../lib/campaign";
+import { PrivateTestCampaignsPage } from "./PrivateCampaignWorkspace";
 
 function CampaignsPage() {
+  const [params] = useSearchParams();
+  if (import.meta.env.VITE_DEMO_MODE === "true" && params.get("view") !== "demo") return <PrivateTestCampaignsPage />;
+  return <DemoCampaignsPage />;
+}
+
+function DemoCampaignsPage() {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [threads, setThreads] = useState<ReplyConversationRecord[]>([]);
@@ -168,7 +175,7 @@ function CampaignsPage() {
       <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 md:px-7 md:py-7" data-slot="reengage-campaigns">
       <div className="space-y-6">
         <PageHeader
-          actions={<Button asChild><Link to="/reengage/campaigns/new"><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />New campaign</Link></Button>}
+          actions={<>{import.meta.env.VITE_DEMO_MODE === "true" && <Button asChild variant="secondary"><Link to="/reengage/campaigns">Test campaigns</Link></Button>}<Button asChild><Link to={import.meta.env.VITE_DEMO_MODE === "true" ? "/reengage/campaigns/new?view=demo" : "/reengage/campaigns/new"}><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />New campaign</Link></Button></>}
           subtitle="Prepare audiences and messages, then approve one sending batch at a time."
           title="Campaigns"
         />

@@ -61,6 +61,33 @@ was created or changed there.
 
 ## Manual test in Hilite
 
+### One-person campaigns from Leads
+
+In this demo, **Leads** and **Campaigns** open the private test workspace by
+default. Unlock it with the private test key. The key stays in tab memory while
+navigating between Leads, Campaigns and Settings; reload or Lock clears it.
+
+1. In Leads, add the person's name and WhatsApp number and confirm consent.
+2. Choose **Create campaign** on that lead, or select the lead in Campaigns.
+3. Preview the approved CPF invitation and original poster, then save the campaign.
+4. Choose **Review & send**, verify the one recipient, and confirm the real send.
+
+Private contacts and campaign history use `meta_test_leads` and
+`meta_test_campaigns`, separate from the public fictional data. RLS is enabled;
+`anon` and `authenticated` have no table privileges. Every server action requires
+the operator key. Each campaign references exactly one private lead, and an atomic
+draft-to-sending claim prevents concurrent or repeated sends. Uncertain outcomes
+are locked for review and are never retried automatically. Meta acceptance is
+recorded separately from confirmed delivery.
+
+**View demo leads/campaigns** opens the original fictional dataset. Those
+campaign queues, reminders and discovery still cannot send. Private campaigns
+use only the fixed approved image template and the new sender ending 4289.
+
+Migration: `20261105152610_private_whatsapp_test_campaigns.sql`.
+
+### Direct individual test
+
 RE-engage Settings contains a **WhatsApp test · Hi-Hunt** panel. Its
 private test key is separate from the Meta access token. The test key stays in
 browser memory and is not saved to local storage. **Copy key** lets the operator
@@ -140,8 +167,8 @@ image configuration before contacting Meta. The review sample does not
 automatically attach the poster to a send; each send needs its media ID or URL.
 See [Meta's template object example](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/types/TemplateObject/).
 
-The existing public Hilite campaign demo remains simulated. The private manual
-test uses Meta Cloud API and does not enable the Hermes campaign send flow.
+The existing public Hilite campaign demo remains simulated. Private one-person
+campaigns and direct tests use Meta Cloud API and do not enable the Hermes campaign send flow.
 No real message has been sent as part of this setup.
 
 Remaining: Meta's review of the submitted **Hi-Hunt** display name and a recipient

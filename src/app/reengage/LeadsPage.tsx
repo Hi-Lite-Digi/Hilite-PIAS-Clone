@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, MessageCircle, Plus, SearchX, Upload } from "lucide-react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   getCampaigns,
   getLeads,
@@ -29,6 +29,7 @@ import { LeadDetailDrawer } from "./LeadDetailDrawer";
 import { LeadFormDrawer } from "./LeadFormDrawer";
 import { LeadImportDrawer } from "./LeadImportDrawer";
 import { leadMatchesCampaignAudience } from "./campaign-view";
+import { PrivateTestLeadsPage } from "./PrivateCampaignWorkspace";
 
 const DEFAULT_LEAD_PAGE_SIZE = 10;
 
@@ -38,6 +39,12 @@ function getLeadCampaigns(lead: LeadRecord, campaigns: readonly CampaignRecord[]
 }
 
 function LeadsPage() {
+  const [params] = useSearchParams();
+  if (import.meta.env.VITE_DEMO_MODE === "true" && params.get("view") !== "demo") return <PrivateTestLeadsPage />;
+  return <DemoLeadsPage />;
+}
+
+function DemoLeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
@@ -227,7 +234,7 @@ function LeadsPage() {
     <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 md:px-7 md:py-7" data-slot="reengage-leads">
       <div className="space-y-6">
         <PageHeader
-          actions={<><Button onClick={() => setImportOpen(true)} variant="secondary"><Upload aria-hidden="true" className="size-4" strokeWidth={1.75} />Upload leads</Button><Button onClick={() => setAddOpen(true)}><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />Add lead</Button></>}
+          actions={<>{import.meta.env.VITE_DEMO_MODE === "true" && <Button asChild variant="secondary"><Link to="/reengage/leads">Test leads</Link></Button>}<Button onClick={() => setImportOpen(true)} variant="secondary"><Upload aria-hidden="true" className="size-4" strokeWidth={1.75} />Upload leads</Button><Button onClick={() => setAddOpen(true)}><Plus aria-hidden="true" className="size-4" strokeWidth={1.75} />Add lead</Button></>}
           subtitle="Search, segment, and maintain the people available for WhatsApp campaigns."
           title="Leads"
         />

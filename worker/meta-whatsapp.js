@@ -2,13 +2,27 @@ import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { buildTestMessage } from "../scripts/test-meta-template.mjs";
+import { createMetaTestStore } from "./meta-test-store.js";
 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
 const WABA_ID = "1656774412758599";
 const PHONE_ID = "1442204225635652";
 const digits = value => String(value || "").replace(/[+\s()-]/g, "");
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const failure = (message, status = 400) => Object.assign(new Error(message), { status });
+const failure = (message, status = 400, detail = {}) => Object.assign(new Error(message), { status, ...detail });
+const uuid = value => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+function recipientNumber(value) {
+  let phone = digits(value);
+  if (phone.length === 8) phone = `65${phone}`;
+  if (!/^[1-9]\d{7,14}$/.test(phone)) throw failure("Enter a WhatsApp number with its country code.");
+  if (/^120255501\d{2}$/.test(phone)) throw failure("Choose a real test recipient instead of a fictional demo contact.");
+  return phone;
+}
+function contactName(value) {
+  const name = String(value || "").trim();
+  if (!name || name.length > 80 || /[\r\n\t]/.test(name)) throw failure("Enter a name of up to 80 characters.");
+  return name;
+}
 
 function authorise(request, env) {
   const expected = String(env.META_TEST_OPERATOR_TOKEN || "");
@@ -35,7 +49,7 @@ async function graph(env, path, options = {}, fetcher = fetch) {
   } catch {
     throw failure(options.method === "POST" && path.endsWith("/messages")
       ? "Delivery was not confirmed. Check the recipient's WhatsApp before trying again."
-      : "Meta could not be reached. Please check the connection again.", 502);
+      : "Meta could not be reached. Please check the connection again.", 502, { deliveryUnknown: options.method === "POST" && path.endsWith("/messages") });
   }
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.error) {
@@ -75,7 +89,20 @@ export async function getMetaTestStatus(env, fetcher = fetch) {
   };
 }
 
-export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)) } = {}) {
+async function sendTemplate(env, recipient, firstName, fetcher, loadPoster) {
+  const media = new FormData();
+  media.set("messaging_product", "whatsapp");
+  media.set("type", "image/png");
+  media.set("file", new Blob([await loadPoster()], { type: "image/png" }), "cpf-webinar-poster.png");
+  const uploaded = await graph(env, `${PHONE_ID}/media`, { method: "POST", body: media }, fetcher);
+  if (!/^\d+$/.test(String(uploaded.id || ""))) throw failure("Meta did not accept the poster upload. No message was sent.", 502);
+  const message = buildTestMessage(recipient, firstName, { id: String(uploaded.id) });
+  const result = await graph(env, `${PHONE_ID}/messages`, { method: "POST", body: JSON.stringify(message) }, fetcher);
+  if (!result.messages?.[0]?.id) throw failure("Delivery was not confirmed. Check WhatsApp before trying again.", 502, { deliveryUnknown: true });
+  return { accepted: true, messageId: result.messages[0].id, recipient: `Number ending ${recipient.slice(-4)}`, deliveryConfirmed: false };
+}
+
+export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env) } = {}) {
   try {
     if (request.method !== "POST") return json({ error: "Use POST for the private WhatsApp test connection." }, 405);
     const origin = request.headers.get("origin");
@@ -85,17 +112,36 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
     if (raw.length > 2048) throw failure("The test request is too large.", 413);
     let input;
     try { input = JSON.parse(raw); } catch { throw failure("Enter valid test details."); }
-    if (!input || !["status", "send"].includes(input.action)) throw failure("Choose a connection check or a single test send.");
+    if (!input || !["status", "send", "list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"].includes(input.action)) throw failure("Choose a connection check or a private campaign action.");
+    if (input.action === "list_leads") return json({ data: await store.listLeads() });
+    if (input.action === "list_campaigns") return json({ data: await store.listCampaigns() });
+    if (input.action === "create_lead") {
+      if (input.consented !== true) throw failure("Confirm this person agreed to receive your test message.");
+      return json({ data: await store.createLead({ name: contactName(input.name), phone: recipientNumber(input.phone), consented: true }) }, 201);
+    }
+    if (input.action === "create_campaign") {
+      if (!uuid(input.leadId)) throw failure("Select exactly one private test lead.");
+      const title = String(input.title || "").trim();
+      if (!title || title.length > 120) throw failure("Enter a campaign name of up to 120 characters.");
+      const lead = await store.getLead(input.leadId);
+      if (!lead?.consented) throw failure("Choose a private lead who agreed to receive this test.");
+      return json({ data: await store.createCampaign({ title, lead_id: lead.id }) }, 201);
+    }
+    let campaign;
+    if (input.action === "send_campaign") {
+      if (input.confirmed !== true) throw failure("Confirm sending this campaign to its one selected recipient.");
+      if (!uuid(input.campaignId)) throw failure("Select a private test campaign.");
+      campaign = await store.getCampaign(input.campaignId);
+      if (!campaign) throw failure("This private campaign was not found. Refresh the campaign list.", 404);
+      if (campaign.status !== "draft") throw failure("This campaign has already been attempted. Check WhatsApp and the campaign status before creating another test.", 409);
+      if (!campaign.lead?.consented) throw failure("This lead has not agreed to receive this test.");
+    }
     let recipient;
     let firstName;
-    if (input.action === "send") {
+    if (input.action === "send" || campaign) {
       if (input.confirmed !== true) throw failure("Confirm the recipient agreed to receive this test message.");
-      recipient = digits(input.recipient);
-      if (recipient.length === 8) recipient = `65${recipient}`;
-      if (!/^[1-9]\d{7,14}$/.test(recipient)) throw failure("Enter a WhatsApp number with its country code.");
-      if (/^120255501\d{2}$/.test(recipient)) throw failure("Choose a real test recipient instead of a fictional demo contact.");
-      firstName = String(input.firstName || "").trim();
-      if (!firstName || firstName.length > 80 || /[\r\n\t]/.test(firstName)) throw failure("Enter a first name of up to 80 characters.");
+      recipient = recipientNumber(campaign ? campaign.lead.phone : input.recipient);
+      firstName = contactName(campaign ? campaign.lead.name.split(/\s+/)[0] : input.firstName);
       if (String(env.META_TEST_SEND_ENABLED).toLowerCase() !== "true") throw failure("Manual test sending is not enabled yet.", 403);
     }
     const status = await getMetaTestStatus(env, fetcher);
@@ -104,19 +150,18 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
     if (!status.ready) return json({ error: status.requirements.join(" "), ...publicStatus }, 409);
     if (recipient === senderNumber) throw failure("Use a different WhatsApp number as the test recipient.");
 
-    // Upload only this supplied poster, only after verifying the dedicated sender
-    // and approved template. Never accept a caller-selected URL, sender or file.
-    const media = new FormData();
-    media.set("messaging_product", "whatsapp");
-    media.set("type", "image/png");
-    media.set("file", new Blob([await loadPoster()], { type: "image/png" }), "cpf-webinar-poster.png");
-    const uploaded = await graph(env, `${PHONE_ID}/media`, { method: "POST", body: media }, fetcher);
-    if (!/^\d+$/.test(String(uploaded.id || ""))) throw failure("Meta did not accept the poster upload. No message was sent.", 502);
-    const message = buildTestMessage(recipient, firstName, { id: String(uploaded.id) });
-    // One send request. Network failures are never automatically retried.
-    const result = await graph(env, `${PHONE_ID}/messages`, { method: "POST", body: JSON.stringify(message) }, fetcher);
-    if (!result.messages?.[0]?.id) throw failure("Delivery was not confirmed. Check WhatsApp before trying again.", 502);
-    return json({ accepted: true, messageId: result.messages[0].id, recipient: `Number ending ${recipient.slice(-4)}`, deliveryConfirmed: false });
+    if (campaign && !await store.claimCampaign(campaign.id)) throw failure("Another request already started this campaign. Refresh its status.", 409);
+    try {
+      // No caller-selected file, sender, template or recipient override. One send,
+      // with no automatic retries, even after a timeout or an uncertain result.
+      const result = await sendTemplate(env, recipient, firstName, fetcher, loadPoster);
+      if (!campaign) return json(result);
+      const saved = await store.finishCampaign(campaign.id, "accepted", result.messageId).catch(() => null);
+      return json({ ...result, campaignId: campaign.id, trackingSaved: Boolean(saved) });
+    } catch (error) {
+      if (campaign) await store.finishCampaign(campaign.id, error.deliveryUnknown ? "unknown" : "failed").catch(() => undefined);
+      throw error;
+    }
   } catch (error) {
     return json({ error: error?.status ? error.message : "The WhatsApp test could not be completed." }, Number(error?.status) || 500);
   }

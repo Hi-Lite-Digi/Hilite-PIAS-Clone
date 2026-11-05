@@ -7,6 +7,7 @@ import { createStaticHandler, createStaticRouter, StaticRouterProvider } from "r
 import type { WhatsAppGatewayStatus } from "../../lib/api";
 import SettingsPage from "./SettingsPage";
 import { DEFAULT_REENGAGE_SETTINGS, type ReengageSettings } from "./settings-model";
+import { MetaTestProvider } from "./MetaTestContext";
 
 const needsAttention: WhatsAppGatewayStatus = {
   configured: true,
@@ -36,7 +37,7 @@ async function renderSettings(initialSettings?: ReengageSettings) {
   const context = await handler.query(new Request("http://localhost/reengage/settings"));
   assert.ok(!(context instanceof Response));
   const router = createStaticRouter(handler.dataRoutes, context);
-  return renderToStaticMarkup(<StaticRouterProvider context={context} router={router} />);
+  return renderToStaticMarkup(<MetaTestProvider><StaticRouterProvider context={context} router={router} /></MetaTestProvider>);
 }
 
 test("RE-engage settings renders WhatsApp, the fixed Gmail sender, cap, and local send window", async () => {

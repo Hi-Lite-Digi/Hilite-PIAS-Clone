@@ -3,12 +3,14 @@ import { Copy, LockKeyhole, RefreshCw, SendHorizontal } from "lucide-react";
 import { Button, Card, ConfirmDialog, StatusPill } from "../components/system";
 import definition from "../../../config/pias-clone-demo-template.json";
 import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
+import { Link } from "react-router";
+import { useMetaTest } from "./MetaTestContext";
 
 type Connection = { ready: boolean; sender: string; senderStatus: string; template: string; templateStatus: string; requirements: string[] };
 const inputClass = "mt-2 h-11 w-full rounded-control border border-line bg-surface px-3 text-body text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
 
 export default function MetaWhatsAppTestPanel() {
-  const [operatorKey, setOperatorKey] = useState("");
+  const { operatorKey, setOperatorKey } = useMetaTest();
   const [recipient, setRecipient] = useState("");
   const [firstName, setFirstName] = useState("");
   const [consented, setConsented] = useState(false);
@@ -56,7 +58,8 @@ export default function MetaWhatsAppTestPanel() {
 
   return (
     <Card id="whatsapp-test" title="WhatsApp test · Hi-Hunt" action={<StatusPill label={connection?.ready ? "Ready" : "Locked"} status={connection?.ready ? "done" : "paused"} />}>
-      <p className="mb-5 text-label text-ink-2">Sends one real message from the new number ending 4289. Demo campaigns remain disabled.</p>
+      <p className="mb-5 text-label text-ink-2">Send the approved CPF image template from the new number ending 4289.</p>
+      <p className="mb-5 text-label"><Link className="underline underline-offset-4" to="/reengage/leads">Add a private lead</Link>, then <Link className="underline underline-offset-4" to="/reengage/campaigns">create a one-person test campaign</Link>.</p>
       <form className="space-y-5" onSubmit={event => { event.preventDefault(); if (connection?.ready && consented && !busy) setConfirmOpen(true); }}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="min-w-0 flex-1 text-label font-medium text-ink-2" htmlFor="meta-operator-key"><span className="inline-flex items-center gap-2"><LockKeyhole aria-hidden="true" className="size-4" />Private test key</span><input autoComplete="off" className={inputClass} disabled={Boolean(busy)} id="meta-operator-key" onChange={event => { setOperatorKey(event.target.value); setConnection(null); setError(null); setKeyCopied(false); }} required type="password" value={operatorKey} /></label>

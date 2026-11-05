@@ -109,3 +109,94 @@ test("the routed endpoint stays private in demo mode even if a Meta token is acc
   assert.equal(response.status, 503);
   assert.match((await response.json()).error, /private WhatsApp test connection/);
 });
+
+const privateLead = { id: "11111111-1111-4111-8111-111111111111", name: "Demo Tester", phone: "447700900123", consented: true };
+const privateCampaign = { id: "22222222-2222-4222-8222-222222222222", title: "One person only", lead_id: privateLead.id, status: "draft", lead: privateLead };
+function privateStore() {
+  let campaign = structuredClone(privateCampaign);
+  const calls: string[] = [];
+  return {
+    calls,
+    listLeads: async () => { calls.push("listLeads"); return [privateLead]; },
+    createLead: async (lead: typeof privateLead) => { calls.push("createLead"); return { ...lead, id: privateLead.id }; },
+    getLead: async (id: string) => { calls.push("getLead"); return id === privateLead.id ? privateLead : undefined; },
+    listCampaigns: async () => [structuredClone(campaign)],
+    createCampaign: async (value: { title: string; lead_id: string }) => { calls.push("createCampaign"); return { ...campaign, ...value }; },
+    getCampaign: async (id: string) => id === campaign.id ? structuredClone(campaign) : undefined,
+    claimCampaign: async () => {
+      calls.push("claimCampaign");
+      if (campaign.status !== "draft") return undefined;
+      campaign = { ...campaign, status: "sending" };
+      return structuredClone(campaign);
+    },
+    finishCampaign: async (_id: string, status: string) => { calls.push(`finish:${status}`); campaign = { ...campaign, status }; return structuredClone(campaign); },
+  };
+}
+
+test("private lead and campaign data cannot be read or changed without the private key", async () => {
+  const store = privateStore();
+  const mock = { ...provider(), store };
+  for (const action of ["list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"]) {
+    assert.equal((await handleMetaWhatsAppRequest(request({ action }, "wrong"), env, mock)).status, 401);
+  }
+  assert.equal(store.calls.length, 0);
+  assert.equal(mock.calls.length, 0);
+});
+
+test("private lead creation requires explicit consent and refuses the public fictional contacts", async () => {
+  const store = privateStore();
+  const mock = { ...provider(), store };
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "create_lead", name: "Demo", phone: privateLead.phone, consented: false }), env, mock)).status, 400);
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "create_lead", name: "Demo", phone: "12025550102", consented: true }), env, mock)).status, 400);
+  assert.equal(store.calls.length, 0);
+  const response = await handleMetaWhatsAppRequest(request({ action: "create_lead", name: privateLead.name, phone: `+${privateLead.phone}`, consented: true }), env, mock);
+  assert.equal(response.status, 201);
+  assert.deepEqual((await response.json()).data, privateLead);
+  assert.equal(mock.calls.length, 0);
+});
+
+test("campaign creation selects one stored private lead and never accepts a bulk audience", async () => {
+  const store = privateStore();
+  const mock = { ...provider(), store };
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "create_campaign", title: "Bulk", leadId: [privateLead.id] }), env, mock)).status, 400);
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "create_campaign", title: "Demo public lead", leadId: 10 }), env, mock)).status, 400);
+  const response = await handleMetaWhatsAppRequest(request({ action: "create_campaign", title: "One person only", leadId: privateLead.id }), env, mock);
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).data.lead_id, privateLead.id);
+  assert.equal(mock.calls.length, 0);
+});
+
+test("concurrent campaign sends make exactly one Meta send and ignore client recipient overrides", async () => {
+  const store = privateStore();
+  const mock = { ...provider(), store };
+  const data = { action: "send_campaign", campaignId: privateCampaign.id, confirmed: true, recipient: "12025550102", template: "wrong-template" };
+  const responses = await Promise.all([handleMetaWhatsAppRequest(request(data), env, mock), handleMetaWhatsAppRequest(request(data), env, mock)]);
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+  const sends = mock.calls.filter(call => call.url.endsWith("/messages"));
+  assert.equal(sends.length, 1);
+  const payload = JSON.parse(String(sends[0].options.body));
+  assert.equal(payload.to, privateLead.phone);
+  assert.equal(payload.template.components[1].parameters[0].text, "Demo");
+  assert.equal((await store.listCampaigns())[0].status, "accepted");
+});
+
+test("an uncertain campaign send is locked against retries and does not claim delivery", async () => {
+  const store = privateStore();
+  const mock = { ...provider({ sendError: true }), store };
+  const data = { action: "send_campaign", campaignId: privateCampaign.id, confirmed: true };
+  assert.equal((await handleMetaWhatsAppRequest(request(data), env, mock)).status, 502);
+  assert.equal((await store.listCampaigns())[0].status, "unknown");
+  assert.equal((await handleMetaWhatsAppRequest(request(data), env, mock)).status, 409);
+  assert.equal(mock.calls.filter(call => call.url.endsWith("/messages")).length, 1);
+});
+
+test("campaign sends check recipient consent, connection and the manual-send switch before claiming", async () => {
+  const store = privateStore();
+  const mock = { ...provider({ sender: { ...phone, status: "PENDING" } }), store };
+  const data = { action: "send_campaign", campaignId: privateCampaign.id, confirmed: true };
+  assert.equal((await handleMetaWhatsAppRequest(request({ ...data, confirmed: false }), env, mock)).status, 400);
+  assert.equal((await handleMetaWhatsAppRequest(request(data), { ...env, META_TEST_SEND_ENABLED: "false" }, mock)).status, 403);
+  assert.equal((await handleMetaWhatsAppRequest(request(data), env, mock)).status, 409);
+  assert.ok(!store.calls.includes("claimCampaign"));
+  assert.ok(mock.calls.every(call => !call.options.method));
+});
