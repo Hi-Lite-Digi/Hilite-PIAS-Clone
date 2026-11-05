@@ -27,7 +27,7 @@ function TestAccess() {
   ) : (
     <Card title="Unlock private tests">
       <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={event => { event.preventDefault(); setOperatorKey(candidate.trim()); setCandidate(""); }}>
-        <label className="min-w-0 flex-1 text-label font-medium" htmlFor="private-workspace-key">Private test key<input autoComplete="off" className={fieldClass} id="private-workspace-key" onChange={event => setCandidate(event.target.value)} required type="password" value={candidate} /></label>
+        <label className="min-w-0 flex-1 text-label font-medium" htmlFor="private-workspace-key">Private test key<input autoComplete="off" className={fieldClass} id="private-workspace-key" name="private-test-key" onChange={event => setCandidate(event.target.value)} required type="password" value={candidate} /></label>
         <Button size="lg" type="submit">Unlock</Button>
       </form>
       <p className="mt-3 text-label text-ink-2">Real leads and test campaigns are visible only with this key.</p>
@@ -54,7 +54,7 @@ function InvitationPreview({ lead }: { lead?: TestLead }) {
   return <details className="rounded-control border border-line p-4">
     <summary className="cursor-pointer text-label font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50">Preview CPF invitation</summary>
     <div className="mt-4 flex flex-col gap-4">
-      <a href={posterUrl} rel="noreferrer" target="_blank"><img alt="CPF Changes 2026 webinar poster, 29 October, 7–9:30 pm" className="max-h-80 max-w-full rounded-control object-contain" loading="lazy" src={posterUrl} /></a>
+      <a href={posterUrl} rel="noreferrer" target="_blank"><img alt="CPF Changes 2026 webinar poster, 29 October, 7–9:30 pm" className="h-auto w-auto max-h-80 max-w-full rounded-control object-contain" height={1600} loading="lazy" src={posterUrl} width={1131} /></a>
       <p className="whitespace-pre-line text-label">{body.replace("{{1}}", firstName(lead))}</p>
       <p className="text-chip text-ink-2">{definition.components.find(component => component.type === "FOOTER")?.text}</p>
       <p className="text-label font-medium">Attending · Maybe next time · Unsubscribe</p>
@@ -93,7 +93,7 @@ export function PrivateTestLeadsPage() {
     finally { setBusy(false); }
   }
   const columns: DataTableColumn<TestLead>[] = [
-    { key: "name", header: "Lead", cell: lead => <p className="font-medium">{lead.name}</p> },
+    { key: "name", header: "Lead", cell: lead => <p className="break-words font-medium">{lead.name}</p> },
     { key: "phone", header: "WhatsApp", cell: lead => `+${lead.phone}` },
     { key: "action", header: "Campaign", cell: lead => <Button onClick={() => navigate(`/reengage/campaigns?lead=${encodeURIComponent(lead.id)}`)} size="sm" variant="secondary">Create campaign</Button> },
   ];
@@ -102,10 +102,10 @@ export function PrivateTestLeadsPage() {
       <Card title="Add test lead">
         <form className="flex flex-col gap-4" onSubmit={event => void add(event)}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-label font-medium" htmlFor="test-lead-name">Name<input autoComplete="name" className={fieldClass} disabled={busy} id="test-lead-name" maxLength={80} onChange={event => setName(event.target.value)} required value={name} /></label>
-            <label className="text-label font-medium" htmlFor="test-lead-phone">WhatsApp number<input autoComplete="tel" className={fieldClass} disabled={busy} id="test-lead-phone" onChange={event => setPhone(event.target.value)} placeholder="+65 …" required type="tel" value={phone} /></label>
+            <label className="text-label font-medium" htmlFor="test-lead-name">Name<input autoComplete="name" className={fieldClass} disabled={busy} id="test-lead-name" maxLength={80} name="name" onChange={event => setName(event.target.value)} required value={name} /></label>
+            <label className="text-label font-medium" htmlFor="test-lead-phone">WhatsApp number<input autoComplete="tel" className={fieldClass} disabled={busy} id="test-lead-phone" name="phone" onChange={event => setPhone(event.target.value)} placeholder="+65 …" required type="tel" value={phone} /></label>
           </div>
-          <label className="flex min-h-11 items-center gap-3 text-label"><input checked={consented} className="size-5 accent-ink focus-visible:ring-3 focus-visible:ring-ring/50" disabled={busy} onChange={event => setConsented(event.target.checked)} required type="checkbox" />This person agreed to receive the test message.</label>
+          <label className="flex min-h-11 items-center gap-3 text-label"><input checked={consented} className="size-5 shrink-0 accent-ink focus-visible:ring-3 focus-visible:ring-ring/50" disabled={busy} name="consented" onChange={event => setConsented(event.target.checked)} required type="checkbox" />This person agreed to receive the test message.</label>
           <div><Button loading={busy} type="submit"><Plus aria-hidden="true" className="size-4" />Add lead</Button></div>
         </form>
       </Card>
@@ -168,7 +168,7 @@ export function PrivateTestCampaignsPage() {
     } finally { setBusy(false); }
   }
   const columns: DataTableColumn<TestCampaign>[] = [
-    { key: "title", header: "Campaign", cell: campaign => <p className="font-medium">{campaign.title}</p> },
+    { key: "title", header: "Campaign", cell: campaign => <p className="break-words font-medium">{campaign.title}</p> },
     { key: "recipient", header: "One recipient", cell: campaign => <div><p>{campaign.lead.name}</p><p className="text-chip text-ink-2">+{campaign.lead.phone}</p></div> },
     { key: "status", header: "Status", cell: campaign => statusLabel[campaign.status] },
     { key: "send", header: "Send", cell: campaign => campaign.status === "draft" ? <Button disabled={busy || !connection?.ready} onClick={() => setSendTarget(campaign)} size="sm" variant="secondary"><SendHorizontal aria-hidden="true" className="size-4" />Review &amp; send</Button> : "—" },
@@ -179,8 +179,8 @@ export function PrivateTestCampaignsPage() {
       <Card title="Create test campaign">
         <form className="flex flex-col gap-4" onSubmit={event => void save(event)}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="text-label font-medium" htmlFor="test-campaign-title">Campaign name<input className={fieldClass} disabled={busy} id="test-campaign-title" maxLength={120} onChange={event => setTitle(event.target.value)} required value={title} /></label>
-            <label className="text-label font-medium" htmlFor="test-campaign-lead">Recipient<select className={fieldClass} disabled={busy || loading} id="test-campaign-lead" onChange={event => setLeadId(event.target.value)} required value={leadId}><option value="">Choose one private lead</option>{leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name} · +{lead.phone}</option>)}</select></label>
+            <label className="text-label font-medium" htmlFor="test-campaign-title">Campaign name<input autoComplete="off" className={fieldClass} disabled={busy} id="test-campaign-title" maxLength={120} name="campaign-name" onChange={event => setTitle(event.target.value)} required value={title} /></label>
+            <label className="text-label font-medium" htmlFor="test-campaign-lead">Recipient<select className={fieldClass} disabled={busy || loading} id="test-campaign-lead" name="recipient" onChange={event => setLeadId(event.target.value)} required value={leadId}><option value="">Choose one private lead</option>{leads.map(lead => <option key={lead.id} value={lead.id}>{lead.name} · +{lead.phone}</option>)}</select></label>
           </div>
           {!loading && !leads.length && <p className="text-label"><Link className="underline underline-offset-4" to="/reengage/leads">Add a test lead</Link> to choose your recipient.</p>}
           <InvitationPreview lead={selectedLead} />
