@@ -53,3 +53,23 @@ test("normal data reads, lead writes and campaign mutations require workspace au
   }
   assert.equal((await handleApiRequest(new Request("https://hilite.example/api/leads"), { DEMO_MODE: "true" })).status, 503);
 });
+
+test("normal lead searches preserve full email addresses and quote filter punctuation", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const search of ["demo.contact@example.test", 'Doe, Jane (CPF) "Advisor"']) {
+      let upstreamFilter = "";
+      globalThis.fetch = (async input => {
+        upstreamFilter = new URL(String(input)).searchParams.get("or") || "";
+        return new Response("[]", { headers: { "content-range": "*/0", "content-type": "application/json" } });
+      }) as typeof fetch;
+      const url = new URL("https://hilite.example/api/leads");
+      url.searchParams.set("search", search);
+      const response = await handleApiRequest(new Request(url, { headers: { authorization: `Bearer ${key}` } }), { ...env, SUPABASE_URL: "https://demo-project.supabase.co", SUPABASE_SECRET_KEY: "test-only" });
+      assert.equal(response.status, 200);
+      const encodedPattern = JSON.stringify(`*${search}*`);
+      assert.ok(upstreamFilter.includes(`email.ilike.${encodedPattern}`));
+      assert.ok(upstreamFilter.includes(`name.ilike.${encodedPattern}`));
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});

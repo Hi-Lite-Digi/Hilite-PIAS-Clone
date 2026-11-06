@@ -2880,7 +2880,7 @@ async function listLeads(request, env) {
     order: url.searchParams.get("sort") === "age" ? "age.asc.nullslast,name.asc" : "name.asc",
   });
   const rawSearch = String(url.searchParams.get("search") || "").trim().slice(0, 80);
-  const search = safeSearch(rawSearch);
+  const search = rawSearch;
   const ageBand = url.searchParams.get("ageBand");
   const status = url.searchParams.get("status");
   const statuses = String(url.searchParams.get("statuses") || "")
@@ -2919,7 +2919,12 @@ async function listLeads(request, env) {
     });
     return json({ data: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset });
   }
-  if (search) params.set("or", `(name.ilike.*${search}*,email.ilike.*${search}*,phone.ilike.*${search}*)`);
+  if (search) {
+    // PostgREST quoted values preserve email dots and names with commas or
+    // parentheses without allowing those characters to alter the filter.
+    const pattern = JSON.stringify(`*${search}*`);
+    params.set("or", `(name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern})`);
+  }
   if (ageBand && minAge === null && maxAge === null) params.set("age_band", `eq.${ageBand}`);
   if (minAge !== null) params.append("age", `gte.${minAge}`);
   if (maxAge !== null) params.append("age", `lte.${maxAge}`);
