@@ -17,44 +17,42 @@ function PrivacyPage() {
         </div>
 
         <div className="mt-8 space-y-7 text-body leading-7 text-ink-2">
+          <p>HI-LITE DIGITAL PTE. LTD. operates this Hilite outreach demo. This notice describes the contact and messaging information used by the demo.</p>
           <section>
-            <h2 className="text-section-title font-medium text-ink">How Google account access is used</h2>
+            <h2 className="text-section-title font-medium text-ink">Information used</h2>
             <p className="mt-2">
-              Hilite uses the Gmail send permission only to send campaign emails that an authorised Hilite user prepares and approves. The app does not request permission to read, search, modify, or delete email in the connected mailbox.
+              An authorised workspace operator can supply a person's name, phone number, email, consent or subscription status and campaign details. Hilite also processes the selected message template, message identifiers, delivery status and failure information. The workspace includes fictional sample contacts; real contacts added for testing are personal data.
             </p>
           </section>
 
           <section>
-            <h2 className="text-section-title font-medium text-ink">Information handled by Hilite</h2>
+            <h2 className="text-section-title font-medium text-ink">Purpose and service providers</h2>
             <p className="mt-2">
-              Hilite processes campaign content, recipient contact details, delivery status, and the connected sender address for the purpose of sending and tracking approved outreach. OAuth credentials are stored as protected server-side environment variables and are not exposed in the browser.
+              Hilite uses this information to manage leads and campaigns, send operator-approved WhatsApp messages, honour recorded messaging preferences and investigate delivery problems. Meta/WhatsApp processes messages and delivery events. Vercel hosts the application and diagnostic logs. Supabase stores workspace contacts and campaign records. Private service credentials are kept on the server.
+            </p>
+            <p className="mt-2">
+              The new delivery diagnostic records message identifiers, timestamps, status and error codes. It filters out other WhatsApp accounts and does not log incoming message text or contact profiles. Receiving a delivery event does not trigger an automatic reply or resend.
             </p>
           </section>
 
           <section>
-            <h2 className="text-section-title font-medium text-ink">Sharing and retention</h2>
+            <h2 className="text-section-title font-medium text-ink">Retention and choices</h2>
             <p className="mt-2">
-              Google account data is not sold. It is used only to provide the campaign-sending feature and is shared with service providers only where required to operate Hilite securely. Campaign records are retained for operational history until an authorised Hilite user removes them.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-section-title font-medium text-ink">Your choices</h2>
-            <p className="mt-2">
-              The connected Gmail account can revoke Hilite access at any time from Google Account connections. Campaign recipients can use the unsubscribe link included in campaign messages to stop future outreach.
+              Workspace records are retained for the demo's operational history until removed through the workspace or an authorised deletion request. Hosting diagnostic logs follow the hosting provider's configured retention. Recipients can choose Unsubscribe or reply UNSUBSCRIBE; replies are not yet automatically processed by this demo, so the operator must handle requests manually.
             </p>
           </section>
 
           <section>
             <h2 className="text-section-title font-medium text-ink">Contact</h2>
-            <a className="mt-3 inline-flex items-center gap-2 text-ink underline underline-offset-4" href="mailto:namiuser89@gmail.com">
+            <p className="mt-2">For questions, access or correction requests, withdrawal of consent, or a deletion request, contact business@hilitedigi.ai. The operator should stop further outreach when consent is withdrawn and handle the relevant records before further testing.</p>
+            <a className="mt-3 inline-flex items-center gap-2 text-ink underline underline-offset-4" href="mailto:business@hilitedigi.ai">
               <Mail aria-hidden="true" className="size-4" />
-              namiuser89@gmail.com
+              business@hilitedigi.ai
             </a>
           </section>
         </div>
 
-        <p className="mt-10 border-t border-line pt-5 text-chip text-ink-3">Last updated: 4 November 2026</p>
+        <p className="mt-10 border-t border-line pt-5 text-chip text-ink-3">Last updated: 12 November 2026</p>
       </article>
     </main>
   );
