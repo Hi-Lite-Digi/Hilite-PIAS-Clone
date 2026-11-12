@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mail, RefreshCw, Save } from "lucide-react";
 import { useBlocker, type BlockerFunction } from "react-router";
 import { getEmailSenderStatus, type EmailSenderStatus } from "../../lib/api";
+import { GmailSetupControls } from "./GmailSetupControls";
+import { PublicHRSetup } from "./PublicHRSetup";
 import {
   getSettings,
   saveSettings,
@@ -172,7 +174,7 @@ function SettingsPage({ initialEmailSender, initialSenderPreference, initialSett
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-card-title font-medium text-ink">Email · Gmail</h3>
                   <StatusPill
-                    label={checkingEmail ? "Checking" : emailSender?.configured ? "Ready" : "Needs setup"}
+                    label={checkingEmail ? "Checking" : emailSender?.configured ? emailSender.sendingEnabled === false ? "Connected" : "Ready" : "Needs setup"}
                     status={checkingEmail ? "queued" : emailSender?.configured ? "done" : "error"}
                   />
                 </div>
@@ -180,7 +182,7 @@ function SettingsPage({ initialEmailSender, initialSenderPreference, initialSett
                   {checkingEmail
                     ? "Checking the Gmail sender."
                     : emailSender?.configured
-                      ? `Hi-Hunt emails are ready to send as ${emailSender.address}.`
+                      ? emailSender.sendingEnabled === false ? `${emailSender.address} is connected. Email sending is paused.` : `Hi-Hunt emails are ready to send as ${emailSender.address}.`
                       : emailSender?.requirement ?? "The email sender could not be checked."}
                 </p>
                 <label className="mt-4 block text-label font-medium text-ink-2">
@@ -202,7 +204,10 @@ function SettingsPage({ initialEmailSender, initialSenderPreference, initialSett
               </Button>
             </div>
           </div>
+          <GmailSetupControls clientConfigured={Boolean(emailSender?.clientConfigured)} connected={Boolean(emailSender?.configured)} onSaved={() => void refreshEmailSender(senderPreference.senderEmail)} />
         </Card>
+
+        <PublicHRSetup />
 
         <Card action={settingsSample ? <SampleDataPill /> : undefined} description="These values are inserted into new workflow templates and their live preview." title="Email defaults">
           {loadingDefaults ? <Skeleton rows={2} variant="list" label="Loading email defaults" /> : defaultsError ? (

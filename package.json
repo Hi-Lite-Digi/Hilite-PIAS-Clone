@@ -7,7 +7,7 @@
     "build": "vite build --configLoader runner && node scripts/prepare-sites-build.mjs",
     "discover:public-hr": "node scripts/hihunt-public-web-discovery.mjs",
     "dev": "vite --configLoader runner",
-    "test": "node scripts/run-tests.mjs && node --test infrastructure/hermes-relay/server.test.mjs infrastructure/hermes-relay/install-droplet-gateway.test.mjs scripts/hihunt-public-web-discovery.test.mjs",
+    "test": "node scripts/run-tests.mjs && node --test infrastructure/hermes-relay/server.test.mjs infrastructure/hermes-relay/install-droplet-gateway.test.mjs scripts/hihunt-public-web-discovery.test.mjs scripts/gmail-connection.test.mjs scripts/public-hr-discovery.test.mjs",
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
@@ -50,6 +50,7 @@
     "cmdk": "1.1.1",
     "date-fns": "3.6.0",
     "embla-carousel-react": "8.6.0",
+    "google-auth-library": "11.3.4",
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",

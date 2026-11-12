@@ -80,6 +80,8 @@ export type EmailSenderStatus = {
   address: string | null;
   displayName: string | null;
   requirement: string | null;
+  clientConfigured?: boolean;
+  sendingEnabled?: boolean;
 };
 
 export type EmailCampaignSendResult = {
@@ -259,6 +261,8 @@ export type HRProspectRecord = {
   review_status: "new" | "reviewed" | "qualified" | "rejected" | "converted";
   status?: HiHuntLeadStatus;
   provider: HRProspectProvider;
+  source_url?: string | null;
+  name_source?: string | null;
   discovered_at: string;
   updated_at: string;
 };
@@ -409,6 +413,19 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   if (response.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event("hilite-session-expired"));
   if (!response.ok) throw new Error(body.error || "The request could not be completed");
   return body as T;
+}
+
+export function configureGmailClient(clientId: string, clientSecret: string) {
+  return api<{ saved: boolean }>("/api/gmail/client", { method: "POST", body: JSON.stringify({ clientId, clientSecret }) });
+}
+
+export function startGmailConnection() {
+  return api<{ url: string }>("/api/gmail/start", { method: "POST", body: "{}" });
+}
+
+export type PublicHRDiscoveryResult = { saved: number; pages: number; details: Array<{ domain: string; found: number; saved: number; note: string | null }> };
+export function discoverPublicHR(domains: string) {
+  return api<PublicHRDiscoveryResult>("/api/public-hr-discovery", { method: "POST", body: JSON.stringify({ domains }) });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

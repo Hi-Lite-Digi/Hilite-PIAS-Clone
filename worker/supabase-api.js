@@ -1,6 +1,8 @@
 import { handleMetaWhatsAppRequest } from "./meta-whatsapp.js";
 import { requireWorkspaceAccess, workspaceProtectionEnabled, createWorkspaceDb } from "./workspace-session.js";
 import { handleTemplateCampaignRequest } from "./template-campaigns.js";
+import { handleGmailSetup, gmailConnectionStatus } from "./gmail-connection.js";
+import { handlePublicHRDiscovery } from "./public-hr-discovery.js";
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -999,9 +1001,6 @@ async function createPosterSignedUrl(env, path) {
 }
 
 function emailSenderStatus(env) {
-  if (isDemoMode(env)) {
-    return { configured: true, provider: "Gmail", address: "demo@hilite.example", displayName: "Hilite Demo", requirement: null, senderValue: "Hilite Demo <demo@hilite.example>" };
-  }
   const address = primaryEmail(env.GMAIL_SENDER_EMAIL) || null;
   const displayName = String(env.GMAIL_SENDER_NAME || "Hilite")
     .replace(/[\r\n<>]/g, "")
@@ -1404,6 +1403,7 @@ function presentHRProspect(row) {
     review_status: row.review_status,
     status,
     provider: metadata.source_provider === "public_web" ? "public_web" : row.provider,
+    ...((metadata.source_provider === "public_web" || row.provider === "public_web") ? { source_url: typeof metadata.source_url === "string" && metadata.source_url.startsWith("https://") ? metadata.source_url : null, name_source: String(metadata.name_source || "unknown") } : {}),
     discovered_at: row.discovered_at,
     updated_at: row.updated_at,
   };
@@ -5786,6 +5786,8 @@ export async function handleApiRequest(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, "") || "/";
     if (path === "/api/meta-whatsapp") return await handleMetaWhatsAppRequest(request, env);
+    if (path.startsWith("/api/gmail/")) return await handleGmailSetup(request, env);
+    if (path === "/api/public-hr-discovery") return await handlePublicHRDiscovery(request, env);
     if (isDemoMode(env)) {
       if (path.startsWith("/api/cron/")) return json({ ok: true, demo: true, skipped: true });
       if (request.method !== "GET" && request.method !== "HEAD"
@@ -5830,8 +5832,12 @@ export async function handleApiRequest(request, env) {
     if (request.method === "POST" && path === "/api/hr-discovery") return await runHRDiscovery(request, env);
     if (request.method === "GET" && path === "/api/summary") return await workspaceSummary(env);
     if (request.method === "GET" && path === "/api/integrations/whatsapp") return await hermesStatus(env);
-    if (request.method === "GET" && path === "/api/email-sender") return emailSenderResponse(request, env);
-    if (request.method === "GET" && path === "/api/email-account") return await emailAccountResponse(env);
+    if (request.method === "GET" && path === "/api/email-sender") return isDemoMode(env) ? json(await gmailConnectionStatus(env)) : emailSenderResponse(request, env);
+    if (request.method === "GET" && path === "/api/email-account") {
+      if (!isDemoMode(env)) return await emailAccountResponse(env);
+      const sender = await gmailConnectionStatus(env);
+      return json({ data: { status: sender.configured ? "connected" : "disconnected", provider: sender.configured ? "google" : null, address: sender.address, displayName: sender.displayName, connectedAt: sender.connectedAt, lastSyncAt: null, error: sender.requirement, cap: { limit: 0, used: 0, remaining: 0 } } });
+    }
     if (request.method === "POST" && path === "/api/integrations/whatsapp/inbound") return await receiveWhatsAppInbound(request, env);
     if (request.method === "GET" && path === "/api/threads") return await listWhatsAppThreads(request, env);
     if (request.method === "GET" && path === "/api/replies") return await listWhatsAppReplies(env);

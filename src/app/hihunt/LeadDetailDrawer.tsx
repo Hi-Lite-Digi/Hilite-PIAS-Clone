@@ -124,6 +124,8 @@ function LeadDetailDrawer({ historyError, historySources, lead, onOpenChange, on
               <div className="mt-3 rounded-control border border-line p-4">
                 <p className="text-label font-medium text-ink">Why this contact matched</p>
                 <p className="mt-1 text-body text-ink-2">{lead.prospect.hr_match_reason || "No match explanation was provided."}</p>
+                {lead.prospect.provider === "public_web" && <p className="mt-2 text-label text-ink-2">Public listing · not verified for delivery or consent.{lead.prospect.name_source === "email-local-part" ? " Name inferred from the email address." : ""}</p>}
+                {lead.prospect.provider === "public_web" && lead.prospect.source_url && /^https:\/\//i.test(lead.prospect.source_url) && <a className="mt-2 inline-block text-label underline" href={lead.prospect.source_url} target="_blank" rel="noreferrer">View public source</a>}
                 {!lead.status && <p className="mt-3 text-label text-danger">Suppression is unavailable until live outreach status has loaded.</p>}
               </div>
             </section>
