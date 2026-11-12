@@ -45,7 +45,8 @@ function mock({ sendError = false, fake = false } = {}) {
     if (url.endsWith("/messages")) sentBodies.push(JSON.parse(String(options?.body)));
     const data = url.includes("phone_numbers?") ? { data: [{ id: "1442204225635652", display_phone_number: "+6599994289", status: "CONNECTED" }] }
       : url.includes("message_templates?") ? { data: [{ name: templateName, language: "en_US", status: "APPROVED", components: [{ type: "HEADER", format: "IMAGE" }] }] }
-        : url.endsWith("/media") ? { id: "12345" } : { messages: [{ id: "wamid.mock-only" }] };
+        : url.endsWith("?fields=health_status") ? { id: "1442204225635652", health_status: { can_send_message: "AVAILABLE", entities: [] } }
+          : url.endsWith("/media") ? { id: "12345" } : { messages: [{ id: "wamid.mock-only" }] };
     if (sendError && url.endsWith("/messages")) throw new Error("network timeout");
     return new Response(JSON.stringify(data));
   };

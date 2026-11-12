@@ -67,16 +67,35 @@ export async function getMetaTestStatus(env, fetcher = fetch) {
   const connected = phone.status === "CONNECTED";
   const approved = template?.status === "APPROVED" && posterTemplate === true;
   const enabled = String(env.META_TEST_SEND_ENABLED).toLowerCase() === "true";
+  // CONNECTED is registration, not permission to deliver. Meta can accept a
+  // message and subsequently reject it when an app/account is blocked.
+  const healthResult = await graph(env, `${PHONE_ID}?fields=health_status`, {}, fetcher);
+  const health = healthResult.health_status;
+  const messagingHealth = String(health?.can_send_message || "UNKNOWN");
+  const healthVerified = String(healthResult.id) === PHONE_ID && ["AVAILABLE", "LIMITED"].includes(messagingHealth);
+  const healthIssues = (Array.isArray(health?.entities) ? health.entities : [])
+    .filter(entity => ["BLOCKED", "LIMITED"].includes(entity.can_send_message))
+    .flatMap(entity => (Array.isArray(entity.errors) ? entity.errors : []).map(error => ({
+      entity: String(entity.entity_type || "UNKNOWN").slice(0, 40),
+      code: Number(error.error_code) || 0,
+      description: String(error.error_description || "Meta reports a messaging restriction.").slice(0, 1000),
+      solution: String(error.possible_solution || "").slice(0, 1000),
+    })));
   return {
-    ready: connected && approved && enabled,
+    ready: connected && approved && enabled && healthVerified,
     sender: "Number ending 4289",
     senderStatus: phone.status || "UNKNOWN",
     template: definition.name,
     templateStatus: template?.status || "NOT_FOUND",
+    messagingHealth,
+    healthIssues,
     requirements: [
       ...(!connected ? ["Complete registration of the new number in Meta."] : []),
       ...(!approved ? ["Meta must approve the image template."] : []),
       ...(!enabled ? ["Enable manual test sending on the server."] : []),
+      ...(!healthVerified ? healthIssues.length
+        ? healthIssues.map(issue => `Meta ${issue.entity} restriction (${issue.code}): ${issue.description} ${issue.solution}`.trim())
+        : ["Meta has not confirmed this account can send messages. Check its messaging health."] : []),
     ],
     // Used only within this server module, stripped from every HTTP response.
     senderNumber: digits(phone.display_phone_number),

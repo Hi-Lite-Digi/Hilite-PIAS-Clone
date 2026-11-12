@@ -11,13 +11,14 @@ const reply = (data: unknown) => new Response(JSON.stringify(data), { headers: {
 const phone = { id: "1442204225635652", display_phone_number: "+6599994289", status: "CONNECTED" };
 const template = { name: "pias_clone_cpf_webinar_image", language: "en_US", status: "APPROVED", components: [{ type: "HEADER", format: "IMAGE" }] };
 
-function provider({ sender = phone, approvedTemplate = template, sendError = false } = {}) {
+function provider({ sender = phone, approvedTemplate = template, sendError = false, health = { can_send_message: "AVAILABLE", entities: [] as any[] } } = {}) {
   const calls: Array<{ url: string; options: RequestInit }> = [];
   const fetcher: typeof fetch = async (input, options = {}) => {
     const url = String(input);
     calls.push({ url, options });
     if (url.includes("/phone_numbers?")) return reply({ data: [sender] });
     if (url.includes("/message_templates?")) return reply({ data: [approvedTemplate] });
+    if (url.endsWith("/1442204225635652?fields=health_status")) return reply({ id: phone.id, health_status: health });
     if (url.endsWith("/media")) return reply({ id: "123456789" });
     if (url.endsWith("/messages")) {
       if (sendError) throw new Error("network unavailable");
@@ -72,7 +73,27 @@ test("the connection check never uploads or sends and omits the full phone numbe
   assert.ok(!text.includes(phone.display_phone_number));
   assert.ok(!text.includes(env.META_ACCESS_TOKEN));
   assert.ok(!text.includes(key));
-  assert.equal(mock.calls.length, 2);
+  assert.equal(mock.calls.length, 3);
+});
+
+test("a connected number and approved template stay locked when Meta messaging health is blocked", async () => {
+  const mock = provider({ health: { can_send_message: "BLOCKED", entities: [{ entity_type: "APP", can_send_message: "BLOCKED", errors: [{ error_code: 141005, error_description: "App cannot send messages.", possible_solution: "Review app status in Meta." }] }] } });
+  const status = await (await handleMetaWhatsAppRequest(request({ action: "status" }), env, mock)).json();
+  assert.equal(status.ready, false);
+  assert.equal(status.messagingHealth, "BLOCKED");
+  assert.match(status.requirements.join(" "), /141005.*App cannot send messages/);
+  assert.equal((await handleMetaWhatsAppRequest(request(), env, mock)).status, 409);
+  assert.ok(mock.calls.every(call => !call.options.method));
+});
+
+test("calling restrictions alone do not block messaging, but missing messaging health fails closed", async () => {
+  const callingOnly = provider({ health: { can_send_message: "AVAILABLE", entities: [{ entity_type: "PHONE_NUMBER", can_send_message: "AVAILABLE", can_receive_call_sip: "BLOCKED", errors: [{ error_code: 138024 }] }] } });
+  const status = await (await handleMetaWhatsAppRequest(request({ action: "status" }), env, callingOnly)).json();
+  assert.equal(status.ready, true);
+  assert.deepEqual(status.healthIssues, []);
+  const unknown = provider({ health: { can_send_message: "UNKNOWN", entities: [] } });
+  assert.equal((await handleMetaWhatsAppRequest(request(), env, unknown)).status, 409);
+  assert.ok(unknown.calls.every(call => !call.options.method));
 });
 
 test("one authorised test uses the pinned new number, uploads the supplied poster, and sends its image template once", async () => {

@@ -136,7 +136,27 @@ phone. Requests are never automatically retried.
 
 The legacy Hermes/free-text send paths, automatic reminders, and discovery
 remain disabled. Normal confirmed campaigns use Meta's approved template path.
-Live inbound replies/webhooks are not yet connected to Hilite's demo inbox.
+Live inbound replies are not connected to Hilite's demo inbox. The signed
+delivery diagnostic at `/api/meta-whatsapp-webhook` remains disabled until
+`META_APP_SECRET` and a separate, random `META_WEBHOOK_VERIFY_TOKEN` (at least
+32 characters) are configured as server secrets. Publishing the Meta app and
+subscribing its `messages` field are also required for real delivery callbacks.
+The diagnostic accepts only the new account and phone ID, validates the raw
+request's HMAC-SHA256 signature, and logs status/error observations without
+incoming message bodies, contact profiles, automatic replies or resends. It
+does not yet update the campaign table or inbox. Duplicate and out-of-order
+events remain observations, rather than overwriting message state.
+
+The readiness check now also queries the new phone's Meta `health_status`.
+Registration and template approval alone do not establish messaging eligibility.
+Missing or blocked messaging health locks sending and returns Meta's reported
+restrictions. Calling-only restrictions are excluded from that decision.
+
+Meta's [health reference](https://developers.facebook.com/documentation/business-messaging/whatsapp/support/health-status/)
+and [webhook setup reference](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/create-webhook-endpoint/)
+describe these checks. Historical delivery callbacks cannot be fetched later;
+an accepted send must not be reported as delivered without a delivery event or
+confirmation from the recipient.
 
 ## Optional command-line test
 
