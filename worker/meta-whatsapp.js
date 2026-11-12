@@ -7,6 +7,7 @@ import { checkWorkspaceOrigin, requireWorkspaceAccess, handleWorkspaceSession } 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
 const WABA_ID = "1656774412758599";
 const PHONE_ID = "1442204225635652";
+const APP_ID = "1629215102235593";
 const digits = value => String(value || "").replace(/[+\s()-]/g, "");
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 const failure = (message, status = 400, detail = {}) => Object.assign(new Error(message), { status, ...detail });
@@ -81,14 +82,19 @@ export async function getMetaTestStatus(env, fetcher = fetch) {
       description: String(error.error_description || "Meta reports a messaging restriction.").slice(0, 1000),
       solution: String(error.possible_solution || "").slice(0, 1000),
     })));
+  const trackingConfigured = Boolean(env.META_APP_SECRET) && String(env.META_WEBHOOK_VERIFY_TOKEN || "").length >= 32;
+  const subscriptions = trackingConfigured ? await graph(env, `${WABA_ID}/subscribed_apps`, {}, fetcher) : null;
+  const trackingConnected = Array.isArray(subscriptions?.data) && subscriptions.data.some(item => String(item.whatsapp_business_api_data?.id) === APP_ID);
   return {
-    ready: connected && approved && enabled && healthVerified,
+    ready: connected && approved && enabled && healthVerified && (!trackingConfigured || trackingConnected),
     sender: "Number ending 4289",
     senderStatus: phone.status || "UNKNOWN",
     template: definition.name,
     templateStatus: template?.status || "NOT_FOUND",
     messagingHealth,
     healthIssues,
+    trackingConfigured,
+    trackingConnected,
     requirements: [
       ...(!connected ? ["Complete registration of the new number in Meta."] : []),
       ...(!approved ? ["Meta must approve the image template."] : []),
@@ -96,6 +102,7 @@ export async function getMetaTestStatus(env, fetcher = fetch) {
       ...(!healthVerified ? healthIssues.length
         ? healthIssues.map(issue => `Meta ${issue.entity} restriction (${issue.code}): ${issue.description} ${issue.solution}`.trim())
         : ["Meta has not confirmed this account can send messages. Check its messaging health."] : []),
+      ...(trackingConfigured && !trackingConnected ? ["Connect delivery tracking for the new WhatsApp account before sending."] : []),
     ],
     // Used only within this server module, stripped from every HTTP response.
     senderNumber: digits(phone.display_phone_number),
@@ -126,7 +133,13 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
     if (["login", "session", "logout"].includes(input?.action)) return await handleWorkspaceSession(request, env, input.action, sessionStore);
     await requireWorkspaceAccess(request, env, sessionStore);
     checkMetaSetup(env);
-    if (!input || !["status", "send", "list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"].includes(input.action)) throw failure("Choose a connection check or a private campaign action.");
+    if (!input || !["status", "connect_delivery", "send", "list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"].includes(input.action)) throw failure("Choose a connection check or a private campaign action.");
+    if (input.action === "connect_delivery") {
+      if (input.confirmed !== true) throw failure("Confirm connecting delivery tracking for the new account.");
+      if (!env.META_APP_SECRET || String(env.META_WEBHOOK_VERIFY_TOKEN || "").length < 32) throw failure("Configure the signed callback before connecting delivery tracking.", 503);
+      const subscription = await graph(env, `${WABA_ID}/subscribed_apps`, { method: "POST", body: "{}" }, fetcher);
+      if (subscription.success !== true) throw failure("Meta did not confirm the delivery subscription.", 502);
+    }
     if (input.action === "list_leads") return json({ data: await store.listLeads() });
     if (input.action === "list_campaigns") return json({ data: await store.listCampaigns() });
     if (input.action === "create_lead") {
@@ -160,7 +173,7 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
     }
     const status = await getMetaTestStatus(env, fetcher);
     const { senderNumber, ...publicStatus } = status;
-    if (input.action === "status") return json(publicStatus);
+    if (input.action === "status" || input.action === "connect_delivery") return json(publicStatus);
     if (!status.ready) return json({ error: status.requirements.join(" "), ...publicStatus }, 409);
     if (recipient === senderNumber) throw failure("Use a different WhatsApp number as the test recipient.");
 

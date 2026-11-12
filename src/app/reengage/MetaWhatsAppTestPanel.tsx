@@ -6,7 +6,7 @@ import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
 import { Link } from "react-router";
 import { useMetaTest } from "./MetaTestContext";
 
-type Connection = { ready: boolean; sender: string; senderStatus: string; template: string; templateStatus: string; requirements: string[] };
+type Connection = { ready: boolean; sender: string; senderStatus: string; template: string; templateStatus: string; requirements: string[]; trackingConfigured?: boolean; trackingConnected?: boolean };
 const inputClass = "mt-2 h-11 w-full rounded-control border border-line bg-surface px-3 text-body text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
 
 export default function MetaWhatsAppTestPanel() {
@@ -22,12 +22,13 @@ export default function MetaWhatsAppTestPanel() {
   const [keyCopied, setKeyCopied] = useState(false);
   const body = definition.components.find(component => component.type === "BODY")?.text || "";
 
-  async function request(action: "status" | "send") {
-    if (authenticated) return workspaceRequest<Connection & { accepted?: boolean }>(action, action === "send" ? { recipient, firstName, confirmed: consented } : {});
+  async function request(action: "status" | "send" | "connect_delivery") {
+    const details = action === "send" ? { recipient, firstName, confirmed: consented } : action === "connect_delivery" ? { confirmed: true } : {};
+    if (authenticated) return workspaceRequest<Connection & { accepted?: boolean }>(action, details);
     const response = await fetch("/api/meta-whatsapp", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${operatorKey.trim()}` },
-      body: JSON.stringify(action === "status" ? { action } : { action, recipient, firstName, confirmed: consented }),
+      body: JSON.stringify({ action, ...details }),
     }).catch(() => { throw new Error(action === "send" ? "Delivery was not confirmed. Check WhatsApp before trying again." : "Hilite could not be reached. Please check the connection again."); });
     const result = await response.json().catch(() => null);
     if (!response.ok) throw new Error(result?.error || "The connection could not be checked. Please try again.");
@@ -38,6 +39,13 @@ export default function MetaWhatsAppTestPanel() {
     setBusy("check"); setError(null); setConnection(null);
     try { setConnection(await request("status")); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "The connection could not be checked."); }
+    finally { setBusy(null); }
+  }
+
+  async function connectTracking() {
+    setBusy("check"); setError(null);
+    try { setConnection(await request("connect_delivery")); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Delivery tracking could not be connected."); }
     finally { setBusy(null); }
   }
 
@@ -67,7 +75,7 @@ export default function MetaWhatsAppTestPanel() {
           <Button disabled={!operatorKey.trim() || Boolean(busy)} onClick={() => void copyKey()} size="lg" type="button" variant="secondary"><Copy aria-hidden="true" className="size-4" />{keyCopied ? "Copied" : "Copy key"}</Button>
           <Button disabled={!operatorKey.trim() || Boolean(busy)} loading={busy === "check"} onClick={() => void check()} size="lg" type="button" variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Check bot</Button>
         </div>}
-        {connection && <div aria-live="polite" className="rounded-control bg-surface-2 p-4 text-label text-ink-2"><p>Number: {connection.senderStatus} · Template: {connection.templateStatus}</p>{connection.requirements.length > 0 && <ul className="mt-2 list-inside list-disc space-y-1">{connection.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul>}</div>}
+        {connection && <div aria-live="polite" className="rounded-control bg-surface-2 p-4 text-label text-ink-2"><p>Number: {connection.senderStatus} · Template: {connection.templateStatus}</p>{connection.trackingConnected && <p>Delivery tracking connected</p>}{connection.requirements.length > 0 && <ul className="mt-2 list-inside list-disc space-y-1">{connection.requirements.map(requirement => <li key={requirement}>{requirement}</li>)}</ul>}{connection.trackingConfigured && !connection.trackingConnected && <Button className="mt-3" disabled={Boolean(busy)} onClick={() => void connectTracking()} type="button" variant="secondary">Connect delivery tracking</Button>}</div>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-label font-medium text-ink-2" htmlFor="meta-test-recipient">Recipient number<input autoComplete="tel" className={inputClass} disabled={Boolean(busy)} id="meta-test-recipient" onChange={event => { setRecipient(event.target.value); setAccepted(false); }} placeholder="+65 …" required type="tel" value={recipient} /></label>
           <label className="text-label font-medium text-ink-2" htmlFor="meta-test-name">First name<input autoComplete="given-name" className={inputClass} disabled={Boolean(busy)} id="meta-test-name" maxLength={80} onChange={event => { setFirstName(event.target.value); setAccepted(false); }} required type="text" value={firstName} /></label>

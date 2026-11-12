@@ -11,7 +11,7 @@ const reply = (data: unknown) => new Response(JSON.stringify(data), { headers: {
 const phone = { id: "1442204225635652", display_phone_number: "+6599994289", status: "CONNECTED" };
 const template = { name: "pias_clone_cpf_webinar_image", language: "en_US", status: "APPROVED", components: [{ type: "HEADER", format: "IMAGE" }] };
 
-function provider({ sender = phone, approvedTemplate = template, sendError = false, health = { can_send_message: "AVAILABLE", entities: [] as any[] } } = {}) {
+function provider({ sender = phone, approvedTemplate = template, sendError = false, health = { can_send_message: "AVAILABLE", entities: [] as any[] }, subscribedApp = "1629215102235593" } = {}) {
   const calls: Array<{ url: string; options: RequestInit }> = [];
   const fetcher: typeof fetch = async (input, options = {}) => {
     const url = String(input);
@@ -19,6 +19,7 @@ function provider({ sender = phone, approvedTemplate = template, sendError = fal
     if (url.includes("/phone_numbers?")) return reply({ data: [sender] });
     if (url.includes("/message_templates?")) return reply({ data: [approvedTemplate] });
     if (url.endsWith("/1442204225635652?fields=health_status")) return reply({ id: phone.id, health_status: health });
+    if (url.endsWith("/1656774412758599/subscribed_apps")) return reply(options.method === "POST" ? { success: true } : { data: subscribedApp ? [{ whatsapp_business_api_data: { id: subscribedApp } }] : [] });
     if (url.endsWith("/media")) return reply({ id: "123456789" });
     if (url.endsWith("/messages")) {
       if (sendError) throw new Error("network unavailable");
@@ -94,6 +95,34 @@ test("calling restrictions alone do not block messaging, but missing messaging h
   const unknown = provider({ health: { can_send_message: "UNKNOWN", entities: [] } });
   assert.equal((await handleMetaWhatsAppRequest(request(), env, unknown)).status, 409);
   assert.ok(unknown.calls.every(call => !call.options.method));
+});
+
+test("delivery subscription setup requires private access, signed callback configuration and explicit confirmation", async () => {
+  const mock = provider();
+  const configured = { ...env, META_APP_SECRET: "mock-app-secret", META_WEBHOOK_VERIFY_TOKEN: "mock-verification-token-at-least-32-characters" };
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "connect_delivery", confirmed: true }, "wrong"), configured, mock)).status, 401);
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "connect_delivery", confirmed: false }), configured, mock)).status, 400);
+  assert.equal((await handleMetaWhatsAppRequest(request({ action: "connect_delivery", confirmed: true }), env, mock)).status, 503);
+  assert.equal(mock.calls.length, 0);
+  const response = await handleMetaWhatsAppRequest(request({ action: "connect_delivery", confirmed: true, wabaId: "old-account", appId: "old-app" }), configured, mock);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).trackingConnected, true);
+  const writes = mock.calls.filter(call => call.options.method === "POST");
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].url, "https://graph.facebook.com/v25.0/1656774412758599/subscribed_apps");
+  assert.equal(writes[0].options.body, "{}");
+});
+
+test("when signed tracking is configured, an absent or different subscribed app prevents message sends", async () => {
+  const configured = { ...env, META_APP_SECRET: "mock-app-secret", META_WEBHOOK_VERIFY_TOKEN: "mock-verification-token-at-least-32-characters" };
+  for (const subscribedApp of ["", "different-app"]) {
+    const mock = provider({ subscribedApp });
+    const status = await (await handleMetaWhatsAppRequest(request({ action: "status" }), configured, mock)).json();
+    assert.equal(status.ready, false);
+    assert.equal(status.trackingConnected, false);
+    assert.equal((await handleMetaWhatsAppRequest(request(), configured, mock)).status, 409);
+    assert.ok(mock.calls.every(call => !call.options.method));
+  }
 });
 
 test("one authorised test uses the pinned new number, uploads the supplied poster, and sends its image template once", async () => {
