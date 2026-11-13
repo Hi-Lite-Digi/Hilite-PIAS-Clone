@@ -2808,10 +2808,10 @@ async function processHRDiscoveryCron(request, env) {
   return json({ ok: true, ...result });
 }
 
-async function fetchAllLeads(env, select = "id,name,age,age_band,email,topics,status,struck") {
+async function fetchAllLeads(env, select = "id,name,age,age_band,email,topics,status,struck", filters = {}) {
   const rows = [];
   const size = 1000;
-  const params = new URLSearchParams({ select, order: "id.asc" });
+  const params = new URLSearchParams({ select, order: "id.asc", ...filters });
   const fetchBatch = async (offset, includeCount = false) => {
     const headers = { Range: `${offset}-${offset + size - 1}` };
     if (includeCount) headers.Prefer = "count=exact";
@@ -2881,7 +2881,6 @@ async function listLeads(request, env) {
     select: "id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs",
     order: url.searchParams.get("sort") === "age" ? "age.asc.nullslast,name.asc" : "name.asc",
   });
-  if (workspaceProtectionEnabled(env)) params.set("and", "(or(import_batch.is.null,import_batch.neq.hilite-demo-v1))");
   const rawSearch = String(url.searchParams.get("search") || "").trim().slice(0, 80);
   const search = rawSearch;
   const ageBand = url.searchParams.get("ageBand");
@@ -2894,14 +2893,16 @@ async function listLeads(request, env) {
   const topic = url.searchParams.get("topic");
   const campaignId = String(url.searchParams.get("campaignId") || "");
 
-  if (campaignId) {
-    const memberIds = await fetchCampaignLeadIds(env, campaignId);
+  if (campaignId || workspaceProtectionEnabled(env)) {
+    const memberIds = campaignId ? await fetchCampaignLeadIds(env, campaignId) : null;
     const searchText = rawSearch.toLowerCase();
     const sendableOnly = url.searchParams.get("sendable") === "true";
-    const leads = await fetchAllLeads(env, "id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs");
+    const pattern = JSON.stringify(`*${rawSearch}*`);
+    const upstreamFilters = rawSearch ? { or: `(name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern})` } : {};
+    const leads = await fetchAllLeads(env, "id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs,import_batch", upstreamFilters);
     const filtered = leads.filter((lead) => {
       if (workspaceProtectionEnabled(env) && isSampleLead(lead)) return false;
-      if (!memberIds.has(Number(lead.id))) return false;
+      if (memberIds && !memberIds.has(Number(lead.id))) return false;
       if (searchText && !`${lead.name || ""} ${lead.email || ""} ${lead.phone || ""}`.toLowerCase().includes(searchText)) return false;
       const leadAge = Number(lead.age);
       if (minAge !== null && (!Number.isFinite(leadAge) || leadAge < minAge)) return false;

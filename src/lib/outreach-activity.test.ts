@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { isSampleLead, outreachActivity, projectDelivery, trackedDeliveries } from "../../worker/outreach-activity.js";
+import { handleApiRequest } from "../../worker/supabase-api.js";
 
 test("delivery history handles duplicates and out-of-order callbacks without downgrading receipt", () => {
   const row = { id: "row", meta_message_id: "wamid.one", status: "accepted" };
@@ -50,4 +51,21 @@ test("sample contacts are identifiable without deleting actual lead data", () =>
   assert(isSampleLead({ email: "unit@demo.hilite.example" }));
   assert(isSampleLead({ phone: "+1 202 555 0123" }));
   assert(!isSampleLead({ name: "Unit Contact", phone: "+44 7700 900123" }));
+});
+
+test("the normal recipient picker excludes imported and manually created sample contacts before paging", async () => {
+  const originalFetch = globalThis.fetch;
+  const key = "unit-workspace-private-key-at-least-32-characters";
+  globalThis.fetch = (async () => new Response(JSON.stringify([
+    { id: 1, name: "Seed", import_batch: "hilite-demo-v1", phone: "+12025550100" },
+    { id: 2, name: "Demo Contact", phone: "+12025550199", email: "demo@example.test" },
+    { id: 3, name: "Unit Contact", phone: "+447700900123", subscribed: true },
+  ]))) as typeof fetch;
+  try {
+    const response = await handleApiRequest(new Request("https://hilite.example/api/leads?limit=1", { headers: { authorization: `Bearer ${key}` } }), { DEMO_MODE: "true", META_TEST_OPERATOR_TOKEN: key, SUPABASE_URL: "https://unit.example", SUPABASE_SECRET_KEY: "unit-test" });
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.total, 1);
+    assert.equal(result.data[0].id, 3);
+  } finally { globalThis.fetch = originalFetch; }
 });
