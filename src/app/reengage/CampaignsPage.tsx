@@ -20,7 +20,13 @@ import {
 import { audienceSummary, campaignAttendanceCount, campaignAttendanceTotal, campaignProgress, campaignReplyCount, campaignStatus } from "./campaign-view";
 import { campaignDelivery, PARTICIPANT_REMINDER_PRESETS } from "../../lib/campaign";
 
+import OutreachWorkspacePage from "./OutreachWorkspacePage";
+
 function CampaignsPage() {
+  return import.meta.env.VITE_DEMO_MODE === "true" ? <OutreachWorkspacePage view="campaigns" /> : <LegacyCampaignsPage />;
+}
+
+function LegacyCampaignsPage() {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [threads, setThreads] = useState<ReplyConversationRecord[]>([]);

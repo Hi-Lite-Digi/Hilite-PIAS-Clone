@@ -31,7 +31,7 @@ function PrivacyPage() {
               Hilite uses this information to manage leads and campaigns, send operator-approved WhatsApp messages, honour recorded messaging preferences and investigate delivery problems. Meta/WhatsApp processes messages and delivery events. Vercel hosts the application and diagnostic logs. Supabase stores workspace contacts and campaign records. Private service credentials are kept on the server.
             </p>
             <p className="mt-2">
-              The new delivery diagnostic records message identifiers, timestamps, status and error codes. It filters out other WhatsApp accounts and does not log incoming message text or contact profiles. Receiving a delivery event does not trigger an automatic reply or resend.
+              Delivery history stores message identifiers, timestamps, status and error codes in the private workspace database. It filters out other WhatsApp accounts and does not store incoming message text or contact profiles from these callbacks. Receiving a delivery event does not trigger an automatic reply or resend.
             </p>
           </section>
 

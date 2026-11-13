@@ -11,6 +11,20 @@ function request(raw = JSON.stringify(payload), secret = env.META_APP_SECRET) {
   return new Request("https://hilite.example/api/meta-whatsapp-webhook", { method: "POST", headers: { "x-hub-signature-256": `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}` }, body: raw });
 }
 
+test("signed callbacks persist only new-account status observations and retry storage failures", async () => {
+  let rows: unknown[] = [];
+  const success = await handleMetaDeliveryWebhook(request(), env, { logger: () => {}, recordDelivery: async (events: unknown[]) => { rows = events; } });
+  assert.equal(success.status, 200);
+  assert.equal(rows.length, 1);
+  assert.doesNotMatch(JSON.stringify(rows), /PRIVATE BODY|DO NOT LOG|447700900123|demo@example.test/);
+  const retry = await handleMetaDeliveryWebhook(request(), env, { logger: () => {}, recordDelivery: async () => { throw new Error("db unavailable"); } });
+  assert.equal(retry.status, 503);
+  const foreign = JSON.stringify({ ...payload, entry: [{ ...payload.entry[0], id: "old-account" }] });
+  let foreignWrites = 0;
+  assert.equal((await handleMetaDeliveryWebhook(request(foreign), env, { logger: () => {}, recordDelivery: async () => { foreignWrites++; } })).status, 200);
+  assert.equal(foreignWrites, 0);
+});
+
 test("Meta webhook entry point exists and verification requires a configured matching private token", async () => {
   assert.equal(handler, metaDeliveryVercelHandler);
   const verify = (token: string) => new Request(`https://hilite.example/api/meta-whatsapp-webhook?hub.mode=subscribe&hub.challenge=12345&hub.verify_token=${token}`);

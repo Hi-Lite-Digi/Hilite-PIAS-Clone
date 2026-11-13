@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createWorkspaceDb } from "./workspace-session.js";
 
 const WABA_ID = "1656774412758599";
 const PHONE_ID = "1442204225635652";
@@ -8,10 +9,9 @@ const response = (text, status = 200) => new Response(text, { status, headers: {
 const equalSecret = (left, right) => timingSafeEqual(createHash("sha256").update(left).digest(), createHash("sha256").update(right).digest());
 const safeDetail = value => String(value || "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]").replace(/\+?\d[\d ()-]{6,}\d/g, "[number]").slice(0, 1000);
 
-// Diagnostic events only: no message body/contact data, database writes, replies,
-// retries, or effects on old accounts. Repeated/out-of-order callbacks are logged
-// as observations; they never overwrite a later state or trigger another send.
-export async function handleMetaDeliveryWebhook(request, env, { logger = event => console.info(JSON.stringify(event)) } = {}) {
+// Store signed delivery observations only. Never send, retry, reply, or process
+// message bodies. Duplicate/out-of-order receipts cannot downgrade delivery.
+export async function handleMetaDeliveryWebhook(request, env, { logger = event => console.info(JSON.stringify(event)), recordDelivery = env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? rows => createWorkspaceDb(env)("meta_delivery_events?on_conflict=meta_message_id,status,event_at", { method: "POST", headers: { prefer: "resolution=ignore-duplicates,return=minimal" }, body: JSON.stringify(rows) }) : async () => {} } = {}) {
   if (!env.META_APP_SECRET || String(env.META_WEBHOOK_VERIFY_TOKEN || "").length < 32) return response("Webhook is not configured.", 503);
   if (request.method === "GET") {
     const query = new URL(request.url).searchParams;
@@ -31,6 +31,7 @@ export async function handleMetaDeliveryWebhook(request, env, { logger = event =
   try { payload = JSON.parse(raw.toString("utf8")); } catch { return response("Invalid JSON", 400); }
   if (payload?.object !== "whatsapp_business_account") return response("OK");
   let recorded = 0;
+  const events = [];
   for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
     if (String(entry?.id) !== WABA_ID) continue;
     for (const change of Array.isArray(entry.changes) ? entry.changes : []) {
@@ -38,12 +39,21 @@ export async function handleMetaDeliveryWebhook(request, env, { logger = event =
       if (change?.field !== "messages" || value?.messaging_product !== "whatsapp" || String(value.metadata?.phone_number_id) !== PHONE_ID) continue;
       for (const item of Array.isArray(value.statuses) ? value.statuses : []) {
         if (!statuses.has(item?.status) || !/^wamid\.[A-Za-z0-9+/_=-]{1,500}$/.test(String(item.id || ""))) continue;
+        const errors = (Array.isArray(item.errors) ? item.errors : []).map(error => ({ code: Number(error?.code) || 0, details: safeDetail(error?.error_data?.details || error?.message) }));
         logger({ event: "meta_whatsapp_delivery", messageId: item.id, status: item.status,
           timestamp: /^\d{10,13}$/.test(String(item.timestamp || "")) ? String(item.timestamp) : null,
-          errors: (Array.isArray(item.errors) ? item.errors : []).map(error => ({ code: Number(error?.code) || 0, details: safeDetail(error?.error_data?.details || error?.message) })) });
+          errors });
+        if (/^\d{10,13}$/.test(String(item.timestamp || ""))) {
+          const time = new Date(Number(item.timestamp) * (String(item.timestamp).length === 13 ? 1 : 1000));
+          if (Number.isFinite(time.getTime())) events.push({ meta_message_id: item.id, status: item.status, event_at: time.toISOString(), errors });
+        }
         recorded++;
       }
     }
+  }
+  if (events.length) {
+    try { await recordDelivery(events); }
+    catch { logger({ event: "meta_delivery_storage_failed" }); return response("Delivery receipt storage temporarily unavailable", 503); }
   }
   if (!recorded) logger({ event: "meta_whatsapp_webhook_verified", deliveryEvents: 0 });
   return response("OK");

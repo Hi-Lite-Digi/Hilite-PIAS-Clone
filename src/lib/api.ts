@@ -112,10 +112,18 @@ export type TemplateDelivery = {
   campaign_id: string;
   lead_id: number;
   phone: string;
-  status: "draft" | "sending" | "accepted" | "failed" | "unknown" | "suppressed";
+  status: "draft" | "sending" | "accepted" | "sent" | "delivered" | "read" | "failed" | "unknown" | "suppressed";
   failure_reason: string | null;
   lead: Pick<LeadRecord, "id" | "name" | "phone" | "subscribed" | "struck">;
 };
+
+export type OutreachActivity = {
+  campaigns: CampaignRecord[];
+  activity: Array<{ id: string; campaign_id: string | null; name: string; campaignTitle: string; phone: string; status: TemplateDelivery["status"]; occurred_at: string; status_at?: string; failure_reason: string | null }>;
+  truncated: boolean;
+};
+export function getOutreachActivity() { return api<OutreachActivity>("/api/outreach-activity"); }
+export function checkOutreachConnection() { return api<{ ready: boolean; requirements: string[] }>("/api/meta-whatsapp", { method: "POST", body: JSON.stringify({ action: "status" }) }); }
 
 export function getTemplateCampaign(id: string) {
   return api<{ data: CampaignRecord; deliveries: TemplateDelivery[]; leads: Pick<LeadRecord, "id" | "name" | "phone" | "email" | "subscribed" | "struck">[]; fixedTemplate: boolean }>(`/api/campaigns/${encodeURIComponent(id)}/template`);

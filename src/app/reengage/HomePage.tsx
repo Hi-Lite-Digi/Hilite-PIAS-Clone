@@ -25,6 +25,7 @@ import { ChartContainer, type ChartConfig } from "../components/ui/chart";
 import BatchApprovalPanel from "./BatchApprovalPanel";
 import CampaignBentoGrid from "./CampaignBentoGrid";
 import { summarizeHome } from "./home-model";
+import OutreachWorkspacePage from "./OutreachWorkspacePage";
 
 const REPLY_COLORS = {
   Interested: "var(--mint)",
@@ -65,6 +66,10 @@ function todayLabel(date = new Date()) {
 }
 
 function HomePage() {
+  return import.meta.env.VITE_DEMO_MODE === "true" ? <OutreachWorkspacePage /> : <LegacyHomePage />;
+}
+
+function LegacyHomePage() {
   const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [replies, setReplies] = useState<ReplyConversationRecord[]>([]);

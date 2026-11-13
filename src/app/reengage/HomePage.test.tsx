@@ -48,11 +48,14 @@ test("home exposes the approved header actions", () => {
     </StaticRouter>,
   );
 
-  assert.match(markup, />Home</);
+  assert.match(markup, import.meta.env.VITE_DEMO_MODE === "true" ? />WhatsApp outreach</ : />Home</);
   assert.match(markup, /href="\/reengage\/campaigns\/new"/);
   assert.match(markup, /href="\/reengage\/leads\?action=import"/);
   assert.match(markup, /href="\/reengage\/leads\?action=add"/);
-  assert.match(markup, />Today&#x27;s batch</);
+  if (import.meta.env.VITE_DEMO_MODE === "true") {
+    assert.match(markup, />Recent sending activity</);
+    assert.doesNotMatch(markup, /Today&#x27;s batch|All contacts and messages are fictional|Modelled from labelled campaign performance/);
+  } else assert.match(markup, />Today&#x27;s batch</);
 });
 
 test("campaign bento links to detail and labels modelled performance", () => {

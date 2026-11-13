@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { buildTestMessage } from "../scripts/test-meta-template.mjs";
 import { createMetaTestStore } from "./meta-test-store.js";
 import { checkWorkspaceOrigin, requireWorkspaceAccess, handleWorkspaceSession } from "./workspace-session.js";
+import { saveDirectTemplateHistory } from "./outreach-activity.js";
 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
 const WABA_ID = "1656774412758599";
@@ -182,7 +183,10 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
       // No caller-selected file, sender, template or recipient override. One send,
       // with no automatic retries, even after a timeout or an uncertain result.
       const result = await sendTemplate(env, recipient, firstName, fetcher, loadPoster);
-      if (!campaign) return json(result);
+      if (!campaign) {
+        const trackingSaved = env.SUPABASE_URL && env.SUPABASE_SECRET_KEY ? await saveDirectTemplateHistory(env, { messageId: result.messageId, recipient, firstName }).then(() => true).catch(() => false) : false;
+        return json({ ...result, trackingSaved });
+      }
       const saved = await store.finishCampaign(campaign.id, "accepted", result.messageId).catch(() => null);
       return json({ ...result, campaignId: campaign.id, trackingSaved: Boolean(saved) });
     } catch (error) {

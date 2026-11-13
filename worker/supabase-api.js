@@ -3,6 +3,7 @@ import { requireWorkspaceAccess, workspaceProtectionEnabled, createWorkspaceDb }
 import { handleTemplateCampaignRequest } from "./template-campaigns.js";
 import { handleGmailSetup, gmailConnectionStatus } from "./gmail-connection.js";
 import { handlePublicHRDiscovery } from "./public-hr-discovery.js";
+import { outreachActivity, isSampleLead } from "./outreach-activity.js";
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -455,7 +456,8 @@ async function listWhatsAppReplies(env) {
     env,
     "/rest/v1/whatsapp_messages?select=*&order=occurred_at.asc&limit=1000",
   );
-  const messages = await messageResponse.json();
+  const loadedMessages = await messageResponse.json();
+  const messages = workspaceProtectionEnabled(env) ? loadedMessages.filter(message => message.raw_metadata?.demo !== true) : loadedMessages;
   const leadIds = [...new Set(messages.map((message) => message.lead_id).filter(Boolean))];
   const campaignIds = [...new Set(messages.map((message) => message.campaign_id).filter(Boolean))];
   const [leadResponse, campaignResponse] = await Promise.all([
@@ -2879,6 +2881,7 @@ async function listLeads(request, env) {
     select: "id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs",
     order: url.searchParams.get("sort") === "age" ? "age.asc.nullslast,name.asc" : "name.asc",
   });
+  if (workspaceProtectionEnabled(env)) params.set("and", "(or(import_batch.is.null,import_batch.neq.hilite-demo-v1))");
   const rawSearch = String(url.searchParams.get("search") || "").trim().slice(0, 80);
   const search = rawSearch;
   const ageBand = url.searchParams.get("ageBand");
@@ -2897,6 +2900,7 @@ async function listLeads(request, env) {
     const sendableOnly = url.searchParams.get("sendable") === "true";
     const leads = await fetchAllLeads(env, "id,source_row,name,age,age_band,phone,email,dob,topics,status,struck,subscribed,unsubscribed_at,first_captured,remarks,source_tabs");
     const filtered = leads.filter((lead) => {
+      if (workspaceProtectionEnabled(env) && isSampleLead(lead)) return false;
       if (!memberIds.has(Number(lead.id))) return false;
       if (searchText && !`${lead.name || ""} ${lead.email || ""} ${lead.phone || ""}`.toLowerCase().includes(searchText)) return false;
       const leadAge = Number(lead.age);
@@ -3259,7 +3263,8 @@ async function deleteCampaign(campaignId, env) {
 }
 
 async function workspaceSummaryData(env) {
-  const leads = await fetchAllLeads(env, "id,age_band,email,phone,topics,status,struck,subscribed,first_captured");
+  const loaded = await fetchAllLeads(env, "id,age_band,email,phone,topics,status,struck,subscribed,first_captured,import_batch");
+  const leads = workspaceProtectionEnabled(env) ? loaded.filter(lead => !isSampleLead(lead)) : loaded;
   const ageBands = {};
   const statuses = {};
   const topics = {};
@@ -3356,6 +3361,7 @@ async function completeCampaignIfDelivered(env, campaign) {
 
 async function listCampaigns(env) {
   const params = new URLSearchParams({ select: "*", order: "created_at.desc", limit: "100" });
+  if (workspaceProtectionEnabled(env)) params.set("audience->>template", "eq.pias_clone_cpf_webinar_image");
   const response = await supabaseFetch(env, `/rest/v1/campaigns?${params}`);
   const campaigns = await response.json();
   const counts = await campaignDeliveryCounts(env, campaigns.map((campaign) => String(campaign.id)));
@@ -5786,6 +5792,7 @@ export async function handleApiRequest(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/$/, "") || "/";
     if (path === "/api/meta-whatsapp") return await handleMetaWhatsAppRequest(request, env);
+    if (path === "/api/outreach-activity" && request.method === "GET") return await outreachActivity(request, env);
     if (path.startsWith("/api/gmail/")) return await handleGmailSetup(request, env);
     if (path === "/api/public-hr-discovery") return await handlePublicHRDiscovery(request, env);
     if (isDemoMode(env)) {

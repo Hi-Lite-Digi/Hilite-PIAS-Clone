@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createWorkspaceDb, requireWorkspaceAccess } from "./workspace-session.js";
 import { getMetaTestStatus, sendTemplate } from "./meta-whatsapp.js";
+import { trackedDeliveries } from "./outreach-activity.js";
 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
 const bodyText = definition.components.find(item => item.type === "BODY").text;
@@ -42,7 +43,7 @@ export async function handleTemplateCampaignRequest(request, env, { db = createW
       const campaign = await getCampaign();
       if (!campaign) throw failure("Campaign not found.", 404);
       const ids = campaign.audience?.includedLeadIds || [];
-      return json({ data: campaign, deliveries: await deliveries(), leads: ids.length ? await getLeads(ids) : [], fixedTemplate: campaign.audience?.template === definition.name });
+      return json({ data: campaign, deliveries: await trackedDeliveries(db, await deliveries()), leads: ids.length ? await getLeads(ids) : [], fixedTemplate: campaign.audience?.template === definition.name });
     }
     const raw = await request.text();
     if (raw.length > 32000) throw failure("This campaign request is too large.", 413);

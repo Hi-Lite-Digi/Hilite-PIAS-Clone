@@ -129,7 +129,7 @@ test("one authorised test uses the pinned new number, uploads the supplied poste
   const mock = provider();
   const response = await handleMetaWhatsAppRequest(request({ ...body, senderId: "old-phone", template: "unapproved-template" }), env, mock);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { accepted: true, messageId: "wamid.mock-only", recipient: "Number ending 0123", deliveryConfirmed: false });
+  assert.deepEqual(await response.json(), { accepted: true, messageId: "wamid.mock-only", recipient: "Number ending 0123", deliveryConfirmed: false, trackingSaved: false });
   const uploads = mock.calls.filter(call => call.url.endsWith("/media"));
   assert.equal(uploads.length, 1);
   assert.equal(uploads[0].url, "https://graph.facebook.com/v25.0/1442204225635652/media");

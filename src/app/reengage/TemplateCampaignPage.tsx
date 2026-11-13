@@ -11,7 +11,7 @@ import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
 
 const body = definition.components.find(item => item.type === "BODY")?.text || "";
 const footer = definition.components.find(item => item.type === "FOOTER")?.text || "";
-const deliveryLabel: Record<TemplateDelivery["status"], string> = { draft: "Ready", sending: "Delivery unconfirmed", accepted: "Accepted by Meta", failed: "Failed", unknown: "Delivery unconfirmed", suppressed: "Unsubscribed" };
+const deliveryLabel: Record<TemplateDelivery["status"], string> = { draft: "Ready", sending: "Delivery unconfirmed", accepted: "Accepted by Meta", sent: "Sent", delivered: "Delivered", read: "Read", failed: "Failed", unknown: "Delivery unconfirmed", suppressed: "Unsubscribed" };
 
 export function leadCampaignEligibility(lead: LeadRecord) {
   const phone = normaliseWhatsAppPhone(lead.phone);
@@ -128,7 +128,15 @@ export default function TemplateCampaignPage() {
           </Card>
         </div>
         {editable && <Button disabled={busy} loading={busy} onClick={() => void save()}><Save aria-hidden="true" className="size-4" />Save campaign</Button>}
-        {deliveries.length > 0 && <Card title="Delivery results"><div className="mb-4 grid gap-3 sm:grid-cols-3"><StatCard label="Recipients" value={deliveries.length} /><StatCard label="Accepted by Meta" value={deliveries.filter(item => item.status === "accepted").length} /><StatCard label="Awaiting send" value={deliveries.filter(item => item.status === "draft").length} /></div><DataTable columns={[{ key: "lead", header: "Lead", cell: row => row.lead?.name || `Contact ${row.lead_id}` }, { key: "phone", header: "WhatsApp", cell: row => `+${row.phone}` }, { key: "status", header: "Status", cell: row => <div>{deliveryLabel[row.status]}{row.failure_reason && <p className="mt-1 text-chip text-danger">{row.failure_reason}</p>}</div> }]} rows={deliveries} rowKey={row => row.id} /></Card>}
+        {deliveries.length > 0 && <Card title="Delivery results">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Recipients" value={deliveries.length} />
+            <StatCard label="Accepted by Meta" value={deliveries.filter(item => ["accepted", "sent", "delivered", "read"].includes(item.status)).length} />
+            <StatCard label="Confirmed delivered" value={deliveries.filter(item => ["delivered", "read"].includes(item.status)).length} />
+            <StatCard label="Awaiting send" value={deliveries.filter(item => item.status === "draft").length} />
+          </div>
+          <DataTable columns={[{ key: "lead", header: "Lead", cell: row => row.lead?.name || `Contact ${row.lead_id}` }, { key: "phone", header: "WhatsApp", cell: row => `+${row.phone}` }, { key: "status", header: "Status", cell: row => <div>{deliveryLabel[row.status]}{row.failure_reason && <p className="mt-1 text-chip text-danger">{row.failure_reason}</p>}</div> }]} rows={deliveries} rowKey={row => row.id} />
+        </Card>}
         {canSend && <Card title="Send campaign">
           <p className="mb-4 text-label text-ink-2">{connection?.ready ? "Hi-Hunt connected · Template approved" : connectionError || connection?.requirements.join(" ") || "Checking WhatsApp connection…"}</p>
           <label className="mb-4 flex min-h-11 items-center gap-3 text-label"><input checked={consented} className="size-5 shrink-0 accent-ink focus-visible:ring-3 focus-visible:ring-ring/50" disabled={busy} onChange={event => setConsented(event.target.checked)} type="checkbox" />The selected recipients agreed to receive this message.</label>
