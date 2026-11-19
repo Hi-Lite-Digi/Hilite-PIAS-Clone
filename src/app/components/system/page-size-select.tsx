@@ -5,9 +5,10 @@ const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 type PageSizeSelectProps = {
   value: number;
   onValueChange: (value: number) => void;
+  options?: readonly number[];
 };
 
-function PageSizeSelect({ onValueChange, value }: PageSizeSelectProps) {
+function PageSizeSelect({ onValueChange, options = PAGE_SIZE_OPTIONS, value }: PageSizeSelectProps) {
   return (
     <label className="inline-flex items-center gap-2 text-label text-ink-2">
       Rows per page
@@ -17,7 +18,7 @@ function PageSizeSelect({ onValueChange, value }: PageSizeSelectProps) {
         onChange={(event) => onValueChange(Number(event.target.value))}
         value={value}
       >
-        {PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>
     </label>
   );

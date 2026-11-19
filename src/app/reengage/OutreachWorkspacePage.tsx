@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Megaphone, RefreshCw, Upload, UserPlus } from "lucide-react";
 import { checkOutreachConnection, getOutreachActivity, getSummary, type OutreachActivity } from "../../lib/api";
-import { Button, Card, DataTable, EmptyState, PageHeader, Skeleton, StatCard, StatusPill, buttonVariants } from "../components/system";
+import { Button, Card, DataTable, EmptyState, PageHeader, PageSizeSelect, Skeleton, StatCard, StatusPill, buttonVariants } from "../components/system";
 import { deliveryLabels } from "../../lib/delivery-status";
 import { clearApiCache, peekApiJson } from "../../lib/request-cache";
 
 export { deliveryLabels } from "../../lib/delivery-status";
+
+const CAMPAIGN_PAGE_SIZES = [5, 10, 20, 50] as const;
 
 export default function OutreachWorkspacePage({ view = "home" }: { view?: "home" | "campaigns" }) {
   const [data, setData] = useState<OutreachActivity | null>(() => peekApiJson<OutreachActivity>("/api/outreach-activity") ?? null);
@@ -15,6 +17,8 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
   const [leads, setLeads] = useState<number | null>(() => peekApiJson<{ total: number }>("/api/summary")?.total ?? null);
   const [connection, setConnection] = useState<{ ready: boolean; requirements: string[] } | null>(() => peekApiJson<{ ready: boolean; requirements: string[] }>("/api/meta-whatsapp", { method: "POST", body: JSON.stringify({ action: "status" }) }) ?? null);
   const [connectionError, setConnectionError] = useState("");
+  const [campaignPage, setCampaignPage] = useState(0);
+  const [campaignPageSize, setCampaignPageSize] = useState<number>(CAMPAIGN_PAGE_SIZES[0]);
   const requestId = useRef(0);
   const refresh = useCallback(async (checkConnection = false, force = false) => {
     if (force) clearApiCache();
@@ -37,6 +41,11 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
     return () => { requestId.current++; window.clearInterval(timer); };
   }, [refresh]);
   const activity = data?.activity || [];
+  const campaigns = data?.campaigns ?? [];
+  const campaignPageCount = Math.max(1, Math.ceil(campaigns.length / campaignPageSize));
+  const visibleCampaignPage = Math.min(campaignPage, campaignPageCount - 1);
+  const campaignStart = visibleCampaignPage * campaignPageSize;
+  const visibleCampaigns = campaigns.slice(campaignStart, campaignStart + campaignPageSize);
   return <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 sm:px-6 md:px-7 md:py-7">
     <div className="mx-auto max-w-[1180px] space-y-6">
       <PageHeader title={view === "home" ? "WhatsApp outreach" : "Campaigns"} actions={<>
@@ -56,7 +65,19 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
         <StatCard label="Campaigns" value={data ? data.campaigns.length : "—"} />
         <StatCard label="Confirmed deliveries in recent activity" value={data ? activity.filter(row => ["delivered", "read"].includes(row.status)).length : "—"} />
       </div>
-      <Card title="Your campaigns">
+      <Card
+        title="Your campaigns"
+        action={campaigns.length > 0 && (
+          <PageSizeSelect
+            options={CAMPAIGN_PAGE_SIZES}
+            value={campaignPageSize}
+            onValueChange={(size) => {
+              setCampaignPageSize(size);
+              setCampaignPage(0);
+            }}
+          />
+        )}
+      >
         {loading && !data ? <Skeleton rows={3} variant="table" label="Loading campaigns" /> : data ? <DataTable columns={[
           { key: "title", header: "Campaign", cell: row => <div><Link className="font-medium underline decoration-ink/20 underline-offset-4" to={`/reengage/campaigns/${row.id}`}>{row.title}</Link><p className="mt-1 text-chip text-ink-2">Updated {new Date(row.updated_at).toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", day: "numeric", month: "short" })}</p></div> },
           { key: "status", header: "Status", cell: row => row.status === "sent" ? "Completed" : row.status === "sending" ? "In progress" : row.status === "paused" ? "Review results" : "Draft" },
@@ -69,7 +90,19 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
           { key: "notAttending", header: "Not attending", cell: row => <Link aria-label={`View contacts not attending ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=not_attending`}>{row.metrics?.notAttending ?? 0}</Link> },
           { key: "unsubscribed", header: "Unsubscribed", cell: row => <Link aria-label={`View unsubscribed contacts for ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=unsubscribed`}>{row.metrics?.unsubscribed ?? 0}</Link> },
           { key: "open", header: <span className="sr-only">Open campaign</span>, cell: row => <Link className={buttonVariants({ size: "sm", variant: "secondary" })} to={`/reengage/campaigns/${row.id}`}>{row.status === "draft" ? "Review & send" : "View results"}</Link> },
-        ]} rows={data.campaigns} rowKey={row => row.id} emptyState={<EmptyState icon={Megaphone} message="No campaigns yet" action={<Link className={buttonVariants({ variant: "primary" })} to="/reengage/campaigns/new">Create campaign</Link>} />} /> : null}
+        ]} rows={visibleCampaigns} rowKey={row => row.id} emptyState={<EmptyState icon={Megaphone} message="No campaigns yet" action={<Link className={buttonVariants({ variant: "primary" })} to="/reengage/campaigns/new">Create campaign</Link>} />} /> : null}
+        {campaigns.length > 0 && (
+          <nav aria-label="Campaign pages" className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p aria-live="polite" className="text-label text-ink-2 tabular-nums">
+              Showing {campaignStart + 1}–{campaignStart + visibleCampaigns.length} of {campaigns.length}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" disabled={visibleCampaignPage === 0} onClick={() => setCampaignPage(visibleCampaignPage - 1)} size="sm" variant="secondary">Previous</Button>
+              <span className="px-1 text-label text-ink-2 tabular-nums">Page {visibleCampaignPage + 1} of {campaignPageCount}</span>
+              <Button type="button" disabled={visibleCampaignPage + 1 >= campaignPageCount} onClick={() => setCampaignPage(visibleCampaignPage + 1)} size="sm" variant="secondary">Next</Button>
+            </div>
+          </nav>
+        )}
         <p className="mt-4 text-chip text-ink-2">Sent means accepted by Meta. Delivery and read receipts update separately. Earlier replies may not be available.</p>
       </Card>
       <Card title="Recent sending activity">
