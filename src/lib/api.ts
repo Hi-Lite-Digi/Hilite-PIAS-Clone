@@ -1,3 +1,4 @@
+import { cachedFetch } from "./request-cache";
 export type LeadRecord = {
   id: number;
   source_row: number;
@@ -255,6 +256,9 @@ export type ReplyConversationRecord = {
   category: ReplyCategory;
   hasReplies?: boolean;
   replyEnabled?: boolean;
+  replyProvider?: "meta" | "hermes";
+  replyWindowEndsAt?: string | null;
+  replyRestriction?: "unsubscribed" | "window" | "setup";
   thread: ReplyMessageRecord[];
 };
 
@@ -407,7 +411,7 @@ export type SendHRCampaignResult = {
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await cachedFetch(url, {
       cache: "no-store",
       credentials: "same-origin",
       ...init,
@@ -826,14 +830,14 @@ export function sendReply(
   idempotencyKey: string,
   image?: { path: string; name: string; mimeType: string },
 ) {
-  return api<{ sent?: unknown; messageId?: unknown }>(`/api/replies/${encodeURIComponent(id)}/send`, {
+  return api<{ sent?: unknown; messageId?: unknown; accepted?: boolean; trackingSaved?: boolean }>(`/api/replies/${encodeURIComponent(id)}/send`, {
     method: "POST",
     body: JSON.stringify({ message, idempotencyKey, image }),
   }).then((result) => {
     if (result.sent !== true || (typeof result.messageId !== "string" && result.messageId !== null)) {
       throw new Error("The WhatsApp send returned an invalid response.");
     }
-    return { sent: true as const, messageId: result.messageId };
+    return { sent: true as const, messageId: result.messageId, ...(result.accepted ? { accepted: true, trackingSaved: result.trackingSaved } : {}) };
   });
 }
 

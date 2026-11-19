@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { cachedFetch, clearApiCache } from "../../lib/request-cache";
 
 export type TestConnection = { ready: boolean; senderStatus: string; templateStatus: string; requirements: string[] };
 type TestAccess = {
@@ -20,7 +21,7 @@ export function MetaTestProvider({ children }: { children: ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [sessionError, setSessionError] = useState("");
   const request = useCallback(async <T,>(action: string, input: Record<string, unknown> = {}): Promise<T> => {
-    const response = await fetch("/api/meta-whatsapp", {
+    const response = await cachedFetch("/api/meta-whatsapp", {
       method: "POST", cache: "no-store", credentials: "same-origin",
       headers: { "content-type": "application/json", ...(operatorKey.trim() ? { authorization: `Bearer ${operatorKey.trim()}` } : {}) },
       body: JSON.stringify({ ...input, action }),
@@ -46,10 +47,12 @@ export function MetaTestProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => { if (import.meta.env.VITE_DEMO_MODE === "true") void refreshSession(); else setChecking(false); }, [refreshSession]);
   useEffect(() => {
-    const expired = () => setAuthenticated(false);
+    const expired = () => { clearApiCache(); setAuthenticated(false); };
+    const changed = () => { void refreshSession(); };
     window.addEventListener("hilite-session-expired", expired);
-    return () => window.removeEventListener("hilite-session-expired", expired);
-  }, []);
+    window.addEventListener("hilite-session-changed", changed);
+    return () => { window.removeEventListener("hilite-session-expired", expired); window.removeEventListener("hilite-session-changed", changed); };
+  }, [refreshSession]);
   const login = useCallback(async (username: string, password: string) => {
     const response = await fetch("/api/meta-whatsapp", {
       method: "POST", cache: "no-store", credentials: "same-origin",
@@ -57,9 +60,9 @@ export function MetaTestProvider({ children }: { children: ReactNode }) {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Sign-in failed. Try again.");
-    setOperatorKey(""); setAuthenticated(true); setSessionError("");
+    clearApiCache(true); setOperatorKey(""); setAuthenticated(true); setSessionError("");
   }, []);
-  const logout = useCallback(async () => { await request("logout"); setOperatorKey(""); setAuthenticated(false); }, [request]);
+  const logout = useCallback(async () => { await request("logout"); clearApiCache(true); setOperatorKey(""); setAuthenticated(false); }, [request]);
   const value = useMemo(() => ({ operatorKey, setOperatorKey, authenticated, checking, sessionError, refreshSession, login, logout, request }), [operatorKey, authenticated, checking, sessionError, refreshSession, login, logout, request]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

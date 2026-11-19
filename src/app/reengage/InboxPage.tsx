@@ -43,6 +43,7 @@ import {
 } from "../components/ui/select";
 import { cn } from "../components/ui/utils";
 import { deliveryLabels } from "../../lib/delivery-status";
+import { peekApiJson } from "../../lib/request-cache";
 import {
   filterAndSortThreads,
   findMatchingThread,
@@ -151,13 +152,14 @@ export default function InboxPage({
   const { threadId } = useParams<{ threadId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [threads, setThreads] = useState<ReplyConversationRecord[]>(initialThreads ?? []);
+  const [cachedThreads] = useState(() => peekApiJson<{ data: ReplyConversationRecord[] }>("/api/threads")?.data);
+  const [threads, setThreads] = useState<ReplyConversationRecord[]>(initialThreads ?? cachedThreads ?? []);
   const [selectedThread, setSelectedThread] = useState<ReplyConversationRecord | null>(
-    threadId ? initialSelectedThread : null,
+    threadId ? initialSelectedThread ?? cachedThreads?.find(thread => String(thread.id) === threadId) ?? null : null,
   );
   const [sample, setSample] = useState(initialSample);
-  const [loadingList, setLoadingList] = useState(initialThreads === undefined && !initialListError);
-  const [loadingThread, setLoadingThread] = useState(Boolean(threadId && !initialSelectedThread && !initialThreadError));
+  const [loadingList, setLoadingList] = useState(initialThreads === undefined && !cachedThreads && !initialListError);
+  const [loadingThread, setLoadingThread] = useState(Boolean(threadId && !initialSelectedThread && !cachedThreads?.some(thread => String(thread.id) === threadId) && !initialThreadError));
   const [listError, setListError] = useState<string | null>(initialListError);
   const [threadError, setThreadError] = useState<string | null>(initialThreadError);
   const [threadRetry, setThreadRetry] = useState(0);
@@ -169,6 +171,8 @@ export default function InboxPage({
   const [draft, setDraft] = useState("");
   const [imageAttachment, setImageAttachment] = useState<InboxImageAttachment | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
+  const sendGateRef = useRef(false);
   const [pendingByThread, setPendingByThread] = useState<Record<string, PendingReplyMessage[]>>({});
   const [mutatingThread, setMutatingThread] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -218,7 +222,7 @@ export default function InboxPage({
   }, [threadId]);
 
   const loadThreads = useCallback(async () => {
-    setLoadingList(true);
+    setLoadingList(!peekApiJson("/api/threads"));
     setListError(null);
     try {
       const result = await getThreads();
@@ -412,17 +416,19 @@ export default function InboxPage({
           ? { path: pending.attachmentPath, name: pending.attachment.name, mimeType: pending.attachmentMimeType }
           : undefined,
       );
+      const acceptedMessage = result.accepted ? { ...pending, deliveryStatus: "accepted" as const } : pending;
       setSelectedThread((current) => (
         current?.id === conversationId
-          ? reconcileSuccessfulReply(current, pending, result.messageId)
+          ? reconcileSuccessfulReply(current, acceptedMessage, result.messageId)
           : current
       ));
       setThreads((current) => current.map((thread) => (
         thread.id === conversationId
-          ? reconcileSuccessfulReply(thread, pending, result.messageId)
+          ? reconcileSuccessfulReply(thread, acceptedMessage, result.messageId)
           : thread
       )));
       setPendingByThread((current) => removePendingReply(current, conversationId, pending.id));
+      if (result.trackingSaved === false) toast.error("Meta accepted the message, but its saved history is incomplete. Check WhatsApp before sending it again.");
     } catch (error) {
       setPendingByThread((current) => ({
         ...current,
@@ -473,7 +479,8 @@ export default function InboxPage({
 
   const sendMessage = async () => {
     const caption = draft.trim();
-    if (!selectedThread || (!caption && !imageAttachment) || sample || uploadingImage) return;
+    if (!selectedThread || (!caption && !imageAttachment) || sample || uploadingImage || selectedThread.replyEnabled === false || sendGateRef.current) return;
+    sendGateRef.current = true; setSendingReply(true);
     const conversationId = selectedThread.id;
     const idempotencyKey = makeIdempotencyKey();
     const messageId = `pending-${idempotencyKey}`;
@@ -499,7 +506,8 @@ export default function InboxPage({
     clearImageAttachment();
     if (composerRef.current) composerRef.current.style.height = "auto";
     window.setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 0);
-    await deliverPending(conversationId, pending);
+    try { await deliverPending(conversationId, pending); }
+    finally { sendGateRef.current = false; setSendingReply(false); }
   };
 
   const markUnread = () => {
@@ -517,6 +525,8 @@ export default function InboxPage({
     ? [...selectedThread.thread, ...(pendingByThread[String(selectedThread.id)] ?? [])]
     : [];
   const messageGroups = groupMessagesByDay(selectedMessages);
+  const metaThread = selectedThread?.replyProvider === "meta";
+  const canSendReply = selectedThread?.replyEnabled !== false && (!selectedThread?.replyWindowEndsAt || Date.now() < Date.parse(selectedThread.replyWindowEndsAt));
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -784,16 +794,18 @@ export default function InboxPage({
               )}
             </div>
 
-            {selectedThread.replyEnabled === false ? <div className="shrink-0 border-t border-line bg-surface px-4 py-4 text-label text-ink-2">Sent invitations and received replies appear here. <Link className="font-medium text-ink underline underline-offset-4" to="/reengage/campaigns/new">Create a campaign</Link> to send the approved invitation.</div> : <div className="shrink-0 border-t border-line bg-surface px-3 py-3 md:px-6 md:py-4">
+            <div className="shrink-0 border-t border-line bg-surface px-3 py-3 md:px-6 md:py-4">
+              {metaThread && !canSendReply && <p className="mx-auto mb-3 max-w-3xl text-label text-ink-2">{selectedThread.replyRestriction === "unsubscribed" ? "This contact is unsubscribed. Messaging is unavailable." : selectedThread.replyRestriction === "setup" ? "Inbox sending is not enabled for this workspace." : <>Ask this contact to message <a className="font-medium text-ink underline underline-offset-4" href="https://wa.me/6580254289" rel="noreferrer" target="_blank">the business number</a> to enable replies here for 24 hours. You can also <Link className="font-medium text-ink underline underline-offset-4" to={`/reengage/campaigns/new${selectedThread.leadId ? `?lead=${selectedThread.leadId}` : ""}`}>send an approved invitation</Link>.</>}</p>}
               {sample && <p className="mx-auto mb-2 max-w-3xl rounded-control bg-surface-2 px-3 py-2 text-label text-ink-2">Sample conversations are read-only. Connect the live thread service to categorize, star, mark, or send replies.</p>}
               {imageAttachment && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 rounded-control border border-line bg-surface-2 p-2"><img alt="Image ready to send" className="size-14 rounded-control object-cover" src={imageAttachment.previewUrl} /><div className="min-w-0 flex-1"><p className="truncate text-label font-medium text-ink">{imageAttachment.name}</p><p className="mt-0.5 text-chip text-ink-2">Ready to send through WhatsApp</p></div><button aria-label="Remove attached image" className="inline-flex size-9 items-center justify-center rounded-full text-ink-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50" onClick={clearImageAttachment} type="button"><X aria-hidden="true" className="size-4" /></button></div>}
               <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-card border border-line bg-surface-2 p-2 focus-within:ring-3 focus-within:ring-ring/40">
-                <button aria-label="Attach image" className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-40" disabled={sample || uploadingImage} onClick={() => imageInputRef.current?.click()} type="button"><ImagePlus aria-hidden="true" className="size-5" /></button>
+                {!metaThread && <button aria-label="Attach image" className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-40" disabled={sample || uploadingImage} onClick={() => imageInputRef.current?.click()} type="button"><ImagePlus aria-hidden="true" className="size-5" /></button>}
                 <input ref={imageInputRef} accept={INBOX_IMAGE_TYPES.join(",")} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void selectImage(file); event.currentTarget.value = ""; }} type="file" />
                 <textarea
                   aria-label={`Reply to ${selectedThread.leadName}`}
                   className="max-h-36 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-3 py-2.5 text-body leading-relaxed text-ink outline-none placeholder:text-ink-3"
-                  disabled={sample}
+                  disabled={sample || !canSendReply}
+                  maxLength={metaThread ? 4096 : 12000}
                   onChange={(event) => setDraft(event.target.value)}
                   onInput={(event) => {
                     event.currentTarget.style.height = "auto";
@@ -809,13 +821,13 @@ export default function InboxPage({
                   rows={1}
                   value={draft}
                 />
-                <Button disabled={sample || uploadingImage || (!draft.trim() && !imageAttachment)} loading={uploadingImage} onClick={() => void sendMessage()} size="sm">
+                <Button disabled={sample || !canSendReply || sendingReply || uploadingImage || (!draft.trim() && !imageAttachment)} loading={uploadingImage || sendingReply} onClick={() => void sendMessage()} size="sm">
                   <Send aria-hidden="true" className="size-4" strokeWidth={1.75} />
                   Send
                 </Button>
               </div>
-              <p className="mx-auto mt-2 max-w-3xl px-2 text-chip text-ink-3">Attach an image or write a reply. Enter to send · Shift+Enter for a new line. Sends immediately via the paired Hermes WhatsApp connection.</p>
-            </div>}
+              <p className="mx-auto mt-2 max-w-3xl px-2 text-chip text-ink-3">{metaThread ? "Sends from the business number ending 4289. Enter to send · Shift+Enter for a new line." : "Attach an image or write a reply. Enter to send · Shift+Enter for a new line. Sends immediately via the paired Hermes WhatsApp connection."}</p>
+            </div>
           </>
         ) : (
           <div className="flex h-full items-center justify-center p-5">

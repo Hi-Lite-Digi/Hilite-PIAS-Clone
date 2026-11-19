@@ -12,6 +12,7 @@ import {
 } from "../../lib/api";
 import { getThreads } from "../../lib/stubs";
 import { normaliseWhatsAppPhone } from "../../lib/whatsapp";
+import { clearApiCache, peekApiJson } from "../../lib/request-cache";
 import {
   Button,
   Card,
@@ -39,16 +40,17 @@ function getLeadCampaigns(lead: LeadRecord, campaigns: readonly CampaignRecord[]
 
 function LeadsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [leads, setLeads] = useState<LeadRecord[]>([]);
-  const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
-  const [threads, setThreads] = useState<ReplyConversationRecord[]>([]);
+  const cached = useMemo(() => ({ page: peekApiJson<{ data: LeadRecord[]; total: number }>("/api/leads?limit=10&offset=0"), summary: peekApiJson<WorkspaceSummary>("/api/summary"), campaigns: peekApiJson<{ data: CampaignRecord[] }>("/api/campaigns"), threads: peekApiJson<{ data: ReplyConversationRecord[] }>("/api/threads") }), []);
+  const [leads, setLeads] = useState<LeadRecord[]>(cached.page?.data ?? []);
+  const [summary, setSummary] = useState<WorkspaceSummary | null>(cached.summary ?? null);
+  const [campaigns, setCampaigns] = useState<CampaignRecord[]>(cached.campaigns?.data ?? []);
+  const [threads, setThreads] = useState<ReplyConversationRecord[]>(cached.threads?.data ?? []);
   const [sampleHistory, setSampleHistory] = useState(false);
-  const [loadingLeads, setLoadingLeads] = useState(true);
-  const [loadingSummary, setLoadingSummary] = useState(true);
+  const [loadingLeads, setLoadingLeads] = useState(!cached.page);
+  const [loadingSummary, setLoadingSummary] = useState(!cached.summary);
   const [error, setError] = useState("");
   const [auxiliaryError, setAuxiliaryError] = useState("");
-  const [leadTotal, setLeadTotal] = useState(0);
+  const [leadTotal, setLeadTotal] = useState(cached.page?.total ?? 0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("all");
@@ -65,7 +67,7 @@ function LeadsPage() {
 
   const loadContext = useCallback(async () => {
     const request = ++contextLoadRequest.current;
-    setLoadingSummary(true);
+    setLoadingSummary(!peekApiJson("/api/summary"));
     setAuxiliaryError("");
     const [summaryResult, campaignResult, threadResult] = await Promise.allSettled([
       getSummary(),
@@ -102,7 +104,14 @@ function LeadsPage() {
   useEffect(() => {
     const request = ++leadLoadRequest.current;
     const loadPage = async () => {
-      setLoadingLeads(true);
+      const filters = new URLSearchParams({ limit: String(pageSize), offset: String(pageIndex * pageSize) });
+      if (debouncedSearch) filters.set("search", debouncedSearch);
+      if (status !== "all") filters.set("status", status);
+      if (ageBand !== "all") filters.set("ageBand", ageBand);
+      if (campaignId !== "all") filters.set("campaignId", campaignId);
+      const saved = peekApiJson<{ data: LeadRecord[]; total: number }>(`/api/leads?${filters}`);
+      if (saved) { setLeads(saved.data); setLeadTotal(saved.total); }
+      setLoadingLeads(!saved);
       setError("");
       try {
         const result = await getLeads({
@@ -128,6 +137,7 @@ function LeadsPage() {
   }, [ageBand, campaignId, debouncedSearch, pageIndex, pageSize, reloadToken, status]);
 
   const reload = useCallback(() => {
+    clearApiCache();
     setReloadToken((current) => current + 1);
   }, []);
 

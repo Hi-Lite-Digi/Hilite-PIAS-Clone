@@ -5,6 +5,7 @@ import { handleGmailSetup, gmailConnectionStatus } from "./gmail-connection.js";
 import { handlePublicHRDiscovery } from "./public-hr-discovery.js";
 import { outreachActivity, isSampleLead, trackedDeliveries } from "./outreach-activity.js";
 import { correlateMetaReplies, metaReplyResponse } from "./meta-inbound.js";
+import { handleMetaInboxReply } from "./meta-inbox.js";
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -465,7 +466,7 @@ async function listWhatsAppReplies(env) {
   const campaignIds = [...new Set(messages.map((message) => message.campaign_id).filter(Boolean))];
   const [leadResponse, campaignResponse] = await Promise.all([
     leadIds.length
-      ? supabaseFetch(env, `/rest/v1/leads?id=in.(${leadIds.join(",")})&select=id,name,phone,email,remarks,source_tabs`)
+      ? supabaseFetch(env, `/rest/v1/leads?id=in.(${leadIds.join(",")})&select=id,name,phone,email,remarks,source_tabs,subscribed,struck`)
       : Promise.resolve(null),
     campaignIds.length
       ? supabaseFetch(env, `/rest/v1/campaigns?id=in.(${campaignIds.join(",")})&select=id,title,subject,message,updated_at`)
@@ -563,7 +564,12 @@ async function listWhatsAppReplies(env) {
       starred: Boolean(latestInbound?.starred),
       category: REPLY_CATEGORIES.has(latestInbound?.category) ? latestInbound.category : "Follow-up",
       hasReplies: Boolean(latestInbound),
-      replyEnabled: !workspaceProtectionEnabled(env) && Boolean(latestInbound),
+      replyProvider: threadMessages.some(message => message.raw_metadata?.provider === "meta") ? "meta" : "hermes",
+      replyWindowEndsAt: latestInbound?.raw_metadata?.provider === "meta" ? new Date(Date.parse(latestInbound.occurred_at) + 24 * 60 * 60 * 1000).toISOString() : null,
+      replyEnabled: workspaceProtectionEnabled(env)
+        ? Boolean(String(env.META_TEST_SEND_ENABLED).toLowerCase() === "true" && String(env.META_INBOX_SEND_ENABLED).toLowerCase() === "true" && latestInbound?.raw_metadata?.provider === "meta" && Date.now() - Date.parse(latestInbound.occurred_at) < 24 * 60 * 60 * 1000 && latestInbound.category !== "Unsubscribe" && lead?.subscribed !== false && !lead?.struck)
+        : Boolean(latestInbound),
+      replyRestriction: latestInbound?.category === "Unsubscribe" || lead?.subscribed === false || lead?.struck ? "unsubscribed" : workspaceProtectionEnabled(env) && (String(env.META_TEST_SEND_ENABLED).toLowerCase() !== "true" || String(env.META_INBOX_SEND_ENABLED).toLowerCase() !== "true") ? "setup" : "window",
       thread,
     });
   }
@@ -5814,6 +5820,8 @@ export async function handleApiRequest(request, env) {
     if (path === "/api/outreach-activity" && request.method === "GET") return await outreachActivity(request, env);
     if (path.startsWith("/api/gmail/")) return await handleGmailSetup(request, env);
     if (path === "/api/public-hr-discovery") return await handlePublicHRDiscovery(request, env);
+    const metaInboxSend = /^\/api\/replies\/(\d+)\/send$/.exec(path);
+    if (workspaceProtectionEnabled(env) && String(env.META_INBOX_SEND_ENABLED).toLowerCase() === "true" && request.method === "POST" && metaInboxSend) return await handleMetaInboxReply(request, env, Number(metaInboxSend[1]));
     if (isDemoMode(env)) {
       if (path.startsWith("/api/cron/")) return json({ ok: true, demo: true, skipped: true });
       if (request.method !== "GET" && request.method !== "HEAD"

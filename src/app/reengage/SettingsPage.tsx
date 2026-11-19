@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { clearApiCache } from "../../lib/request-cache";
 import {
   Check,
   Clock3,
@@ -77,6 +78,7 @@ export default function SettingsPage({ initialCap, initialEmailSender, initialGa
   const blocker = useBlocker(blockNavigation);
 
   const refreshGateway = useCallback(async (showFailureToast = true) => {
+    if (showFailureToast) clearApiCache();
     setChecking(true);
     try {
       setGateway(await getWhatsAppStatus());
@@ -91,6 +93,7 @@ export default function SettingsPage({ initialCap, initialEmailSender, initialGa
   }, []);
 
   const refreshCap = useCallback(async (showFailureToast = true) => {
+    if (showFailureToast) clearApiCache();
     setLoadingCap(true);
     try {
       const queue = await getSendQueue();
@@ -106,6 +109,7 @@ export default function SettingsPage({ initialCap, initialEmailSender, initialGa
   }, []);
 
   const refreshEmailSender = useCallback(async (showFailureToast = true) => {
+    if (showFailureToast) clearApiCache();
     setCheckingEmail(true);
     try {
       setEmailSender(await getEmailSenderStatus());

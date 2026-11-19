@@ -5,6 +5,7 @@ import definition from "../../../config/pias-clone-demo-template.json";
 import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
 import { Link } from "react-router";
 import { useMetaTest } from "./MetaTestContext";
+import { clearApiCache } from "../../lib/request-cache";
 
 type Connection = { ready: boolean; sender: string; senderStatus: string; template: string; templateStatus: string; requirements: string[]; trackingConfigured?: boolean; trackingConnected?: boolean };
 const inputClass = "mt-2 h-11 w-full rounded-control border border-line bg-surface px-3 text-body text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
@@ -36,6 +37,7 @@ export default function MetaWhatsAppTestPanel() {
   }
 
   async function check() {
+    clearApiCache();
     setBusy("check"); setError(null); setConnection(null);
     try { setConnection(await request("status")); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "The connection could not be checked."); }

@@ -69,7 +69,7 @@ export async function outreachActivity(request, env, { db = createWorkspaceDb(en
   const [campaigns, deliveries, direct, replies] = await Promise.all([
     db(`campaigns?audience->>template=eq.${template}&select=*&order=created_at.desc&limit=100`),
     pagedRows(db, "meta_campaign_deliveries?select=*,lead:leads(name),campaign:campaigns(title)&order=created_at.desc,id.desc"),
-    db("whatsapp_messages?direction=eq.outbound&raw_metadata->>provider=eq.meta&select=id,external_message_id,recipient_phone,occurred_at,raw_metadata,campaign_id&order=occurred_at.desc&limit=100"),
+    db("whatsapp_messages?direction=eq.outbound&raw_metadata->>provider=eq.meta&raw_metadata->>template=eq.pias_clone_cpf_webinar_image&select=id,external_message_id,recipient_phone,occurred_at,raw_metadata,campaign_id&order=occurred_at.desc&limit=100"),
     loadMetaReplies(db),
   ]);
   const campaignMessages = deliveries.map(row => ({ ...row, name: row.lead?.name || "Contact", campaignTitle: row.campaign?.title || "CPF campaign", occurred_at: row.attempted_at || row.created_at }));

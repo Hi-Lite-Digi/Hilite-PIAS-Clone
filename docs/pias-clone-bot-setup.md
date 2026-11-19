@@ -65,7 +65,9 @@ was created or changed there.
 
 The demo uses the regular Leads table, Add/Edit drawer, filters and spreadsheet
 upload. Contacts and campaign drafts persist in the normal database tables.
-The sole outbound message choice is the approved CPF image template above.
+Campaigns send the approved CPF image template above. The inbox can send
+operator-written text replies from the same connected business number during
+the 24-hour window after the contact's most recent incoming message.
 
 Sign in with the shared workspace username and password. Configure
 `WORKSPACE_LOGIN_USERNAME` and the server-only `WORKSPACE_LOGIN_PASSWORD_HASH`
@@ -89,6 +91,12 @@ messages remain visible without being assigned to a guessed campaign. Duplicate
 callbacks preserve read/star state. Unsubscribe replies suppress pending sends.
 Earlier incoming messages discarded by the old callback cannot be recovered.
 The inbox also displays outbound-only conversations and actual delivery receipts.
+Set `META_INBOX_SEND_ENABLED=true` in Production and apply
+`20261119151000_meta_inbox_sends.sql` to enable manual text replies. The server
+checks the saved recipient, reply window and subscription state before an atomic
+request claim. Duplicate requests and uncertain outcomes are never automatically
+resent. Outside the window, the inbox links to the business WhatsApp number and
+the approved invitation review flow. No outgoing message is sent automatically.
 
 1. In **Leads**, choose **Add lead** or **Upload leads** and save contacts normally.
 2. Choose **Create campaign** for a lead, or **New campaign** from Campaigns.

@@ -4,20 +4,22 @@ import { Megaphone, RefreshCw, Upload, UserPlus } from "lucide-react";
 import { checkOutreachConnection, getOutreachActivity, getSummary, type OutreachActivity } from "../../lib/api";
 import { Button, Card, DataTable, EmptyState, PageHeader, Skeleton, StatCard, StatusPill, buttonVariants } from "../components/system";
 import { deliveryLabels } from "../../lib/delivery-status";
+import { clearApiCache, peekApiJson } from "../../lib/request-cache";
 
 export { deliveryLabels } from "../../lib/delivery-status";
 
 export default function OutreachWorkspacePage({ view = "home" }: { view?: "home" | "campaigns" }) {
-  const [data, setData] = useState<OutreachActivity | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<OutreachActivity | null>(() => peekApiJson<OutreachActivity>("/api/outreach-activity") ?? null);
+  const [loading, setLoading] = useState(() => !peekApiJson("/api/outreach-activity"));
   const [error, setError] = useState("");
-  const [leads, setLeads] = useState<number | null>(null);
-  const [connection, setConnection] = useState<{ ready: boolean; requirements: string[] } | null>(null);
+  const [leads, setLeads] = useState<number | null>(() => peekApiJson<{ total: number }>("/api/summary")?.total ?? null);
+  const [connection, setConnection] = useState<{ ready: boolean; requirements: string[] } | null>(() => peekApiJson<{ ready: boolean; requirements: string[] }>("/api/meta-whatsapp", { method: "POST", body: JSON.stringify({ action: "status" }) }) ?? null);
   const [connectionError, setConnectionError] = useState("");
   const requestId = useRef(0);
-  const refresh = useCallback(async (checkConnection = false) => {
+  const refresh = useCallback(async (checkConnection = false, force = false) => {
+    if (force) clearApiCache();
     const current = ++requestId.current;
-    setLoading(true); setError("");
+    setLoading(!peekApiJson("/api/outreach-activity")); setError("");
     const results = await Promise.allSettled([getOutreachActivity(), getSummary(), ...(checkConnection ? [checkOutreachConnection()] : [])]);
     if (current !== requestId.current) return;
     const [activity, summary, status] = results;
@@ -41,7 +43,7 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
         <Link className={buttonVariants({ variant: "primary" })} to="/reengage/campaigns/new"><Megaphone aria-hidden="true" className="size-4" />New campaign</Link>
         <Link className={buttonVariants({ variant: "secondary" })} to="/reengage/leads?action=add"><UserPlus aria-hidden="true" className="size-4" />Add lead</Link>
         <Link className={buttonVariants({ variant: "secondary" })} to="/reengage/leads?action=import"><Upload aria-hidden="true" className="size-4" />Upload leads</Link>
-        <Button variant="secondary" disabled={loading} onClick={() => void refresh(true)}><RefreshCw aria-hidden="true" className="size-4" />Refresh status</Button>
+        <Button variant="secondary" disabled={loading} onClick={() => void refresh(true, true)}><RefreshCw aria-hidden="true" className="size-4" />Refresh status</Button>
       </>} />
       <Card title="CPF Changes & You" action={<StatusPill label={connection?.ready ? "Ready to send" : connectionError ? "Check connection" : connection ? "Needs attention" : "Checking connection"} status={connection?.ready ? "done" : connection || connectionError ? "error" : "queued"} />}>
         <p className="text-label text-ink-2">Approved invitation and poster · Sender ending 4289</p>

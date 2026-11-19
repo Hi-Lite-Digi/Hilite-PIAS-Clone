@@ -15,6 +15,7 @@ import {
   type LeadRecord,
   type ReplyConversationRecord,
 } from "./api";
+import { cachedFetch } from "./request-cache";
 
 type ApiAttempt<T> =
   | { kind: "live"; data: T }
@@ -113,7 +114,7 @@ function responseError(payload: unknown, fallback: string) {
 async function attemptApi<T>(url: string, init?: RequestInit): Promise<ApiAttempt<T>> {
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await cachedFetch(url, {
       ...init,
       headers: { "content-type": "application/json", ...(init?.headers || {}) },
     });

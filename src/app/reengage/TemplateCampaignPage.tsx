@@ -6,6 +6,7 @@ import { normaliseWhatsAppPhone } from "../../lib/whatsapp";
 import { Button, Card, ConfirmDialog, DataTable, EmptyState, PageHeader, SearchInput, Skeleton, StatCard, toast, type DataTableColumn } from "../components/system";
 import { useMetaTest, type TestConnection } from "./MetaTestContext";
 import { fetchPagedCollection } from "./lead-paging";
+import { clearApiCache } from "../../lib/request-cache";
 import definition from "../../../config/pias-clone-demo-template.json";
 import posterUrl from "../../../assets/demo/cpf-webinar-poster.png";
 
@@ -43,8 +44,9 @@ export default function TemplateCampaignPage() {
   const [progress, setProgress] = useState("");
   const [dirty, setDirty] = useState(false);
   const editable = !campaign || campaign.status === "draft";
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     if (!id) return;
+    if (force) clearApiCache();
     const result = await getTemplateCampaign(id);
     setCampaign(result.data); setDeliveries(result.deliveries);
     setTitle(result.data.title); setSelectedIds(result.data.audience.includedLeadIds || []); setDirty(false);
@@ -115,7 +117,7 @@ export default function TemplateCampaignPage() {
   return <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 md:px-7 md:py-7">
     <div className="space-y-6">
       <Link className="inline-flex min-h-11 items-center gap-2 text-label text-ink-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50" to="/reengage/campaigns"><ArrowLeft aria-hidden="true" className="size-4" />Campaigns</Link>
-      <PageHeader title={campaign ? campaign.title : "New campaign"} actions={id && <Button disabled={busy} onClick={() => void refresh().catch(cause => setError(cause.message))} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Refresh status</Button>} />
+      <PageHeader title={campaign ? campaign.title : "New campaign"} actions={id && <Button disabled={busy} onClick={() => void refresh(true).catch(cause => setError(cause.message))} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Refresh status</Button>} />
       {loading ? <Skeleton rows={4} label="Loading campaign" /> : <>
         {error && <p className="rounded-control border border-danger/20 bg-danger/10 p-4 text-label text-danger" role="alert">{error}</p>}
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">

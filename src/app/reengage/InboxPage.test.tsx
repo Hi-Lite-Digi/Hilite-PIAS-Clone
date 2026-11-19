@@ -31,6 +31,24 @@ const sampleThread: ReplyConversationRecord = {
   ],
 };
 
+test("Meta inbox shows a normal text composer during the reply window", () => {
+  const live = { ...sampleThread, replyProvider: "meta" as const, replyEnabled: true, replyWindowEndsAt: "2099-01-01T00:00:00Z" };
+  const markup = renderToStaticMarkup(<StaticRouter location="/reengage/inbox/42"><Routes><Route path="/reengage/inbox/:threadId" element={<InboxPage initialThreads={[live]} initialSelectedThread={live} />} /></Routes></StaticRouter>);
+  assert.match(markup, /aria-label="Reply to Aisha Rahman"/);
+  assert.match(markup, /Sends from the business number ending 4289/);
+  assert.doesNotMatch(markup, /<textarea[^>]*disabled/);
+  assert.doesNotMatch(markup, /Hermes|aria-label="Attach image"/);
+});
+
+test("a closed Meta reply window explains how to enable messaging and preserves the invitation option", () => {
+  const live = { ...sampleThread, replyProvider: "meta" as const, replyEnabled: false };
+  const markup = renderToStaticMarkup(<StaticRouter location="/reengage/inbox/42"><Routes><Route path="/reengage/inbox/:threadId" element={<InboxPage initialThreads={[live]} initialSelectedThread={live} />} /></Routes></StaticRouter>);
+  assert.match(markup, /https:\/\/wa.me\/6580254289/);
+  assert.match(markup, /enable replies here for 24 hours/);
+  assert.match(markup, /send an approved invitation/);
+  assert.match(markup, /<textarea[^>]*disabled/);
+});
+
 function renderInbox(pathname: string) {
   return renderToStaticMarkup(
     <StaticRouter location={pathname}>

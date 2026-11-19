@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { peekApiJson } from "../../lib/request-cache";
 import {
   CalendarDays,
   ChevronLeft,
@@ -102,14 +103,14 @@ function CalendarDayCell({ day, events, todayKey }: CalendarDayCellProps) {
 }
 
 function CalendarPage() {
-  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignRecord[]>(() => peekApiJson<{ data: CampaignRecord[] }>("/api/campaigns")?.data ?? []);
   const [currentMonth, setCurrentMonth] = useState(() => getSingaporeMonth());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekApiJson("/api/campaigns"));
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    setLoading(!peekApiJson("/api/campaigns"));
     getCampaigns()
       .then((result) => {
         if (!active) return;

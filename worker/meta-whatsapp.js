@@ -52,6 +52,7 @@ async function graph(env, path, options = {}, fetcher = fetch) {
     const code = Number(body.error?.code) || 0;
     const detail = code === 190 ? "The Meta access token has expired or is invalid."
       : code === 131042 ? "Meta requires an eligible payment method for this WhatsApp account."
+        : code === 131047 ? "The WhatsApp reply window has closed. Ask this contact to message the business number again, or send an approved invitation."
         : code === 133010 ? "The new phone number still needs Cloud API registration."
           : `Meta rejected the request (code ${code || response.status}).`;
     throw failure(detail, 502);
@@ -121,6 +122,14 @@ export async function sendTemplate(env, recipient, firstName, fetcher = fetch, l
   const result = await graph(env, `${PHONE_ID}/messages`, { method: "POST", body: JSON.stringify(message) }, fetcher);
   if (!result.messages?.[0]?.id) throw failure("Delivery was not confirmed. Check WhatsApp before trying again.", 502, { deliveryUnknown: true });
   return { accepted: true, messageId: result.messages[0].id, recipient: `Number ending ${recipient.slice(-4)}`, deliveryConfirmed: false };
+}
+
+export async function sendMetaText(env, recipient, body, fetcher = fetch) {
+  checkMetaSetup(env);
+  const result = await graph(env, `${PHONE_ID}/messages`, { method: "POST", body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: recipient, type: "text", text: { body, preview_url: false } }) }, fetcher);
+  const messageId = result.messages?.[0]?.id;
+  if (!messageId) throw failure("Delivery was not confirmed. Check WhatsApp before sending again.", 502, { deliveryUnknown: true });
+  return { messageId };
 }
 
 export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env), sessionStore = createSessionStore(env) } = {}) {
