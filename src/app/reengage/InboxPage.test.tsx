@@ -151,6 +151,5 @@ test("the RE-engage composer uploads and sends private image attachments", () =>
 test("long conversations expose a one-click jump to the latest message", () => {
   const source = readFileSync(path.join(process.cwd(), "src/app/reengage/InboxPage.tsx"), "utf8");
   assert.match(source, /aria-label="Jump to latest message"/);
-  assert.match(source, /container\.scrollTo\(\{ top: container\.scrollHeight, behavior: "smooth" \}\)/);
-  assert.match(source, /onScroll=\{\(event\) => updateJumpToLatest\(event\.currentTarget\)\}/);
+  assert.match(source, /onClick=\{jumpToLatest\}/);
 });

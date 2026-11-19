@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -50,6 +50,7 @@ import {
   getCampaignFilterOptions,
   getCategoryPresentation,
   getThreadHref,
+  getThreadIdentity,
   getThreadRequestDecision,
   groupMessagesByDay,
   isAwayFromLatestMessage,
@@ -72,6 +73,7 @@ const CATEGORY_OPTIONS: ReplyCategory[] = ["Interested", "Not Interested", "Ques
 const INBOX_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const MAX_INBOX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MEDIA_ONLY_BODIES = new Set(["[Image sent]", "[Image received]", "[Sticker received]"]);
+const useBrowserLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 type InboxImageAttachment = {
   path: string;
@@ -181,7 +183,8 @@ export default function InboxPage({
   const imageObjectUrl = useRef<string | null>(null);
   const imageUploadRequest = useRef(0);
   const messageScrollRef = useRef<HTMLDivElement>(null);
-  const threadEndRef = useRef<HTMLDivElement>(null);
+  const messageContentRef = useRef<HTMLDivElement>(null);
+  const followLatestRef = useRef(true);
   const attemptedReadReceipts = useRef(new Set<string>());
   const lastThreadRequest = useRef("");
   const onCountsChangeRef = useRef(onCountsChange);
@@ -196,13 +199,17 @@ export default function InboxPage({
   }, []);
 
   const updateJumpToLatest = useCallback((container: HTMLDivElement) => {
-    setShowJumpToLatest(isAwayFromLatestMessage(container));
+    const awayFromLatest = isAwayFromLatestMessage(container);
+    followLatestRef.current = !awayFromLatest;
+    setShowJumpToLatest(awayFromLatest);
   }, []);
 
   const jumpToLatest = useCallback(() => {
     const container = messageScrollRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    followLatestRef.current = true;
+    container.scrollTop = container.scrollHeight;
+    setShowJumpToLatest(false);
   }, []);
 
   useEffect(() => {
@@ -318,6 +325,10 @@ export default function InboxPage({
       setLoadingThread(false);
       return;
     }
+
+    // A new reply can replace the URL's message ID without changing the conversation.
+    // Keep the message pane mounted while the router finishes that replacement.
+    if (threadId !== threadIdRef.current) return;
 
     if (existingThread) {
       lastThreadRequest.current = getThreadRequestDecision(
@@ -505,7 +516,7 @@ export default function InboxPage({
     setDraft("");
     clearImageAttachment();
     if (composerRef.current) composerRef.current.style.height = "auto";
-    window.setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 0);
+    jumpToLatest();
     try { await deliverPending(conversationId, pending); }
     finally { sendGateRef.current = false; setSendingReply(false); }
   };
@@ -525,16 +536,26 @@ export default function InboxPage({
     ? [...selectedThread.thread, ...(pendingByThread[String(selectedThread.id)] ?? [])]
     : [];
   const messageGroups = groupMessagesByDay(selectedMessages);
+  const conversationIdentity = selectedThread ? getThreadIdentity(selectedThread) : null;
+  const showingMessages = Boolean(threadId && selectedThread && !loadingThread);
   const metaThread = selectedThread?.replyProvider === "meta";
   const canSendReply = selectedThread?.replyEnabled !== false && (!selectedThread?.replyWindowEndsAt || Date.now() < Date.parse(selectedThread.replyWindowEndsAt));
 
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const container = messageScrollRef.current;
-      if (container) updateJumpToLatest(container);
+  useBrowserLayoutEffect(() => {
+    if (!showingMessages) return;
+    const container = messageScrollRef.current;
+    const content = messageContentRef.current;
+    if (!container || !content) return;
+
+    jumpToLatest();
+    const observer = new ResizeObserver(() => {
+      if (followLatestRef.current) jumpToLatest();
+      else updateJumpToLatest(container);
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [selectedMessages.length, selectedThread?.id, updateJumpToLatest]);
+    observer.observe(container);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [conversationIdentity, showingMessages, jumpToLatest, updateJumpToLatest]);
 
   return (
     <main className="flex h-full min-h-0 overflow-hidden bg-surface" data-slot="inbox-page">
@@ -691,11 +712,15 @@ export default function InboxPage({
 
             <div className="relative min-h-0 flex-1">
               <div
+                aria-label="Conversation messages"
                 className="h-full overflow-y-auto px-4 py-6 [scrollbar-width:none] md:px-8"
+                key={conversationIdentity}
                 onScroll={(event) => updateJumpToLatest(event.currentTarget)}
                 ref={messageScrollRef}
+                role="region"
+                tabIndex={0}
               >
-                <div className="mx-auto max-w-3xl space-y-6">
+                <div className="mx-auto max-w-3xl space-y-6" ref={messageContentRef}>
                 {messageGroups.map((group) => (
                   <section aria-label={group.label} key={group.key}>
                     <div className="mb-5 flex items-center gap-3" role="separator">
@@ -777,7 +802,6 @@ export default function InboxPage({
                     </div>
                   </section>
                 ))}
-                  <div ref={threadEndRef} />
                 </div>
               </div>
               {showJumpToLatest && (
