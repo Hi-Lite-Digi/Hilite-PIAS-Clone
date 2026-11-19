@@ -8,7 +8,7 @@ type TestAccess = {
   checking: boolean;
   sessionError: string;
   refreshSession: () => Promise<void>;
-  login: (key: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   request: <T>(action: string, input?: Record<string, unknown>) => Promise<T>;
 };
@@ -50,10 +50,10 @@ export function MetaTestProvider({ children }: { children: ReactNode }) {
     window.addEventListener("hilite-session-expired", expired);
     return () => window.removeEventListener("hilite-session-expired", expired);
   }, []);
-  const login = useCallback(async (key: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const response = await fetch("/api/meta-whatsapp", {
       method: "POST", cache: "no-store", credentials: "same-origin",
-      headers: { "content-type": "application/json", authorization: `Bearer ${key.trim()}` }, body: JSON.stringify({ action: "login" }),
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "login", username: username.trim(), password }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Sign-in failed. Try again.");

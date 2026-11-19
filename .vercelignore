@@ -3,5 +3,6 @@
 !.env.example
 .codex-tmp
 .tmp
+*.log
 dist
 node_modules

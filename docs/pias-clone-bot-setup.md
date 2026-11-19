@@ -67,12 +67,28 @@ The demo uses the regular Leads table, Add/Edit drawer, filters and spreadsheet
 upload. Contacts and campaign drafts persist in the normal database tables.
 The sole outbound message choice is the approved CPF image template above.
 
-Sign in once with the workspace key. A host-only Secure, HttpOnly, SameSite=Strict
+Sign in with the shared workspace username and password. Configure
+`WORKSPACE_LOGIN_USERNAME` and the server-only `WORKSPACE_LOGIN_PASSWORD_HASH`
+in Vercel Production. Generate the hash with `hashWorkspacePassword` from
+`worker/workspace-session.js`; never put the password in source or frontend
+environment variables. Apply `20261119143000_workspace_login_rate.sql` for
+private, persistent sign-in rate limiting. Keep `META_TEST_OPERATOR_TOKEN`
+unchanged: it protects integration access and existing Gmail encryption.
+
+A host-only Secure, HttpOnly, SameSite=Strict
 cookie keeps this browser signed in for 30 days, including after refresh. Only a
 SHA-256 hash of its random session token is stored in `workspace_sessions`.
-Sign out revokes that session; rotating the operator key revokes all sessions.
+Sign out revokes that session; changing login credentials revokes all sessions.
 Neither the operator key nor Meta token is saved in browser storage or a URL.
 All workspace data APIs now require authorization, including reads and imports.
+
+The signed Meta webhook saves incoming text, button responses and media-type
+summaries in the private inbox without sending automatic replies. Exact outgoing
+message IDs and recipient numbers determine campaign attribution; uncorrelated
+messages remain visible without being assigned to a guessed campaign. Duplicate
+callbacks preserve read/star state. Unsubscribe replies suppress pending sends.
+Earlier incoming messages discarded by the old callback cannot be recovered.
+The inbox also displays outbound-only conversations and actual delivery receipts.
 
 1. In **Leads**, choose **Add lead** or **Upload leads** and save contacts normally.
 2. Choose **Create campaign** for a lead, or **New campaign** from Campaigns.

@@ -12,7 +12,7 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import {
   getPosterUploadTicket,
   sendReply,
@@ -42,6 +42,7 @@ import {
   SelectTrigger,
 } from "../components/ui/select";
 import { cn } from "../components/ui/utils";
+import { deliveryLabels } from "../../lib/delivery-status";
 import {
   filterAndSortThreads,
   findMatchingThread,
@@ -92,7 +93,7 @@ function getErrorMessage(error: unknown) {
 function formatThreadTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("en-SG", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 function makeIdempotencyKey() {
@@ -148,6 +149,7 @@ export default function InboxPage({
   onCountsChange,
 }: InboxPageProps) {
   const { threadId } = useParams<{ threadId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [threads, setThreads] = useState<ReplyConversationRecord[]>(initialThreads ?? []);
   const [selectedThread, setSelectedThread] = useState<ReplyConversationRecord | null>(
@@ -160,7 +162,10 @@ export default function InboxPage({
   const [threadError, setThreadError] = useState<string | null>(initialThreadError);
   const [threadRetry, setThreadRetry] = useState(0);
   const [query, setQuery] = useState("");
-  const [campaignId, setCampaignId] = useState("all");
+  const campaignId = searchParams.get("campaign") || "all";
+  const responseFilter = searchParams.get("response") || "all";
+  const setCampaignId = (value: string) => setSearchParams(current => { const next = new URLSearchParams(current); if (value === "all") next.delete("campaign"); else next.set("campaign", value); return next; });
+  const setResponseFilter = (value: string) => setSearchParams(current => { const next = new URLSearchParams(current); if (value === "all") next.delete("response"); else next.set("response", value); return next; });
   const [draft, setDraft] = useState("");
   const [imageAttachment, setImageAttachment] = useState<InboxImageAttachment | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -504,14 +509,9 @@ export default function InboxPage({
   };
 
   const campaignOptions = useMemo(() => getCampaignFilterOptions(threads), [threads]);
-  useEffect(() => {
-    if (campaignId !== "all" && !campaignOptions.some((option) => option.value === campaignId)) {
-      setCampaignId("all");
-    }
-  }, [campaignId, campaignOptions]);
   const visibleThreads = useMemo(
-    () => filterAndSortThreads(threads, query, campaignId),
-    [campaignId, query, threads],
+    () => filterAndSortThreads(threads, query, campaignId, responseFilter),
+    [campaignId, query, responseFilter, threads],
   );
   const selectedMessages = selectedThread
     ? [...selectedThread.thread, ...(pendingByThread[String(selectedThread.id)] ?? [])]
@@ -557,6 +557,7 @@ export default function InboxPage({
             options={campaignOptions}
             value={campaignId}
           />
+          <label className="mt-3 flex items-center gap-3 text-label text-ink-2" htmlFor="inbox-response">Show<select className="min-h-11 min-w-0 flex-1 rounded-control border border-line bg-surface px-3 text-ink outline-none focus-visible:ring-3 focus-visible:ring-ring/50" id="inbox-response" onChange={event => setResponseFilter(event.target.value)} value={responseFilter}><option value="all">All messages</option><option value="replies">Replies only</option><option value="attending">Attending</option><option value="not_attending">Not attending</option><option value="unsubscribed">Unsubscribed</option></select></label>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
@@ -571,12 +572,12 @@ export default function InboxPage({
             />
           ) : visibleThreads.length === 0 ? (
             <EmptyState
-              action={query || campaignId !== "all" ? (
-                <Button onClick={() => { setQuery(""); setCampaignId("all"); }} variant="secondary">Clear filters</Button>
+              action={query || campaignId !== "all" || responseFilter !== "all" ? (
+                <Button onClick={() => { setQuery(""); setSearchParams({}); }} variant="secondary">Clear filters</Button>
               ) : undefined}
               className="m-4"
               icon={InboxIcon}
-              message={query || campaignId !== "all" ? "No conversations match these filters." : "No replies yet."}
+              message={query || campaignId !== "all" || responseFilter !== "all" ? "No conversations match these filters." : "No messages yet. Sent invitations and incoming replies will appear here."}
             />
           ) : (
             <nav aria-label="Conversations">
@@ -641,18 +642,18 @@ export default function InboxPage({
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-card-title font-medium text-ink">{selectedThread.leadName}</h2>
                 <p className="mt-0.5 truncate text-chip text-ink-2">
-                  Replied to: <span className="font-medium text-ink">{selectedThread.campaign}</span>
+                  {selectedThread.hasReplies === false ? "Campaign:" : "Replied to:"} <span className="font-medium text-ink">{selectedThread.campaign}</span>
                 </p>
               </div>
               <div className="flex w-full shrink-0 items-center justify-end gap-1.5 md:w-auto">
                 <CategoryControl
                   category={selectedThread.category}
-                  disabled={mutatingThread || sample}
+                  disabled={mutatingThread || sample || selectedThread.hasReplies === false}
                   onChange={(category) => void mutateConversation({ category })}
                 />
                 <IconButton
                   aria-pressed={selectedThread.starred}
-                  disabled={mutatingThread || sample}
+                  disabled={mutatingThread || sample || selectedThread.hasReplies === false}
                   icon={Star}
                   label={selectedThread.starred ? "Remove star" : "Star conversation"}
                   onClick={() => void mutateConversation({ starred: !selectedThread.starred })}
@@ -660,14 +661,14 @@ export default function InboxPage({
                 />
                 <IconButton
                   className="lg:hidden"
-                  disabled={mutatingThread || sample}
+                  disabled={mutatingThread || sample || selectedThread.hasReplies === false}
                   icon={MailOpen}
                   label="Mark unread"
                   onClick={markUnread}
                 />
                 <Button
                   className="hidden lg:inline-flex"
-                  disabled={mutatingThread || sample}
+                  disabled={mutatingThread || sample || selectedThread.hasReplies === false}
                   onClick={markUnread}
                   size="sm"
                   variant="ghost"
@@ -743,9 +744,11 @@ export default function InboxPage({
                                       </span>
                                     </div>
                                   ))}
+                              {message.campaignTitle && <p className="mb-2 text-chip font-medium text-ink-2">{message.campaignTitle}</p>}
                               {!mediaOnlyMessage && <p className="whitespace-pre-wrap">{message.body}</p>}
                               <div className="mt-2 flex items-center justify-end gap-2 text-chip text-ink-2">
                                 <time dateTime={message.occurredAt}>{formatThreadTime(message.occurredAt)}</time>
+                                {message.deliveryStatus && <span>{deliveryLabels[message.deliveryStatus]}</span>}
                                 {pending.deliveryState === "sending" && <span>Sending…</span>}
                                 {pending.deliveryState === "failed" && (
                                   <button
@@ -781,7 +784,7 @@ export default function InboxPage({
               )}
             </div>
 
-            <div className="shrink-0 border-t border-line bg-surface px-3 py-3 md:px-6 md:py-4">
+            {selectedThread.replyEnabled === false ? <div className="shrink-0 border-t border-line bg-surface px-4 py-4 text-label text-ink-2">Sent invitations and received replies appear here. <Link className="font-medium text-ink underline underline-offset-4" to="/reengage/campaigns/new">Create a campaign</Link> to send the approved invitation.</div> : <div className="shrink-0 border-t border-line bg-surface px-3 py-3 md:px-6 md:py-4">
               {sample && <p className="mx-auto mb-2 max-w-3xl rounded-control bg-surface-2 px-3 py-2 text-label text-ink-2">Sample conversations are read-only. Connect the live thread service to categorize, star, mark, or send replies.</p>}
               {imageAttachment && <div className="mx-auto mb-2 flex max-w-3xl items-center gap-3 rounded-control border border-line bg-surface-2 p-2"><img alt="Image ready to send" className="size-14 rounded-control object-cover" src={imageAttachment.previewUrl} /><div className="min-w-0 flex-1"><p className="truncate text-label font-medium text-ink">{imageAttachment.name}</p><p className="mt-0.5 text-chip text-ink-2">Ready to send through WhatsApp</p></div><button aria-label="Remove attached image" className="inline-flex size-9 items-center justify-center rounded-full text-ink-2 outline-none hover:bg-surface focus-visible:ring-3 focus-visible:ring-ring/50" onClick={clearImageAttachment} type="button"><X aria-hidden="true" className="size-4" /></button></div>}
               <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-card border border-line bg-surface-2 p-2 focus-within:ring-3 focus-within:ring-ring/40">
@@ -812,7 +815,7 @@ export default function InboxPage({
                 </Button>
               </div>
               <p className="mx-auto mt-2 max-w-3xl px-2 text-chip text-ink-3">Attach an image or write a reply. Enter to send · Shift+Enter for a new line. Sends immediately via the paired Hermes WhatsApp connection.</p>
-            </div>
+            </div>}
           </>
         ) : (
           <div className="flex h-full items-center justify-center p-5">

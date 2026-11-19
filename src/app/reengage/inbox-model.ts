@@ -31,10 +31,18 @@ export function filterAndSortThreads(
   threads: readonly ReplyConversationRecord[],
   query: string,
   campaignId: string,
+  response = "all",
 ): ReplyConversationRecord[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   return threads
-    .filter((thread) => campaignId === "all" || thread.campaignId === campaignId)
+    .filter((thread) => campaignId === "all" || thread.campaignId === campaignId || thread.thread.some(message => message.campaignId === campaignId))
+    .filter(thread => {
+      if (response === "all") return true;
+      const incoming = thread.thread.filter(message => message.from === "lead" && (campaignId === "all" || message.campaignId === campaignId));
+      if (response === "replies") return incoming.length > 0 || thread.hasReplies === true;
+      const latest = [...incoming].sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt)).find(message => message.response);
+      return latest?.response === response;
+    })
     .filter((thread) => {
       if (!normalizedQuery) return true;
       return [
@@ -57,12 +65,12 @@ export function getCampaignFilterOptions(
 ): CampaignFilterOption[] {
   const campaigns = new Map<string, { label: string; count: number }>();
   for (const thread of threads) {
-    if (!thread.campaignId || thread.read) continue;
-    const current = campaigns.get(thread.campaignId);
-    campaigns.set(thread.campaignId, {
-      label: thread.campaign,
-      count: (current?.count ?? 0) + 1,
-    });
+    const names = new Map(thread.thread.filter(message => message.campaignId).map(message => [message.campaignId!, message.campaignTitle || thread.campaign]));
+    if (thread.campaignId) names.set(thread.campaignId, thread.campaign);
+    for (const [id, label] of names) {
+      const current = campaigns.get(id);
+      campaigns.set(id, { label, count: (current?.count ?? 0) + (thread.read ? 0 : 1) });
+    }
   }
 
   const campaignOptions = [...campaigns.entries()]

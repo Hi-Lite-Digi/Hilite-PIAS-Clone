@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { handleWorkspaceSession, requireWorkspaceAccess } from "../../worker/workspace-session.js";
+import { handleWorkspaceSession, requireWorkspaceAccess, hashWorkspacePassword } from "../../worker/workspace-session.js";
+import { handleMetaWhatsAppRequest } from "../../worker/meta-whatsapp.js";
 import { handleApiRequest } from "../../worker/supabase-api.js";
 
 const key = "test-only-workspace-key-at-least-32-characters";
@@ -9,7 +10,7 @@ const env = { DEMO_MODE: "true", META_TEST_OPERATOR_TOKEN: key };
 const req = (headers: Record<string, string> = {}) => new Request("https://hilite.example/api/meta-whatsapp", { method: "POST", headers: { origin: "https://hilite.example", ...headers } });
 function sessionStore() {
   const rows = new Map<string, { token_hash: string; credential_tag: string; expires_at: string }>();
-  return { rows, create: async (row: { token_hash: string; credential_tag: string; expires_at: string }) => { rows.set(row.token_hash, row); }, find: async (hash: string) => rows.get(hash), remove: async (hash: string) => { rows.delete(hash); } };
+  return { rows, limitLogin: async () => true, create: async (row: { token_hash: string; credential_tag: string; expires_at: string }) => { rows.set(row.token_hash, row); }, find: async (hash: string) => rows.get(hash), remove: async (hash: string) => { rows.delete(hash); } };
 }
 
 test("workspace sign-in creates a persistent HttpOnly session without disclosing or storing raw credentials", async () => {
@@ -31,6 +32,32 @@ test("workspace sign-in creates a persistent HttpOnly session without disclosing
   const logout = await handleWorkspaceSession(refreshed, env, "logout", store);
   assert.match(logout.headers.get("set-cookie")!, /Max-Age=0/);
   await assert.rejects(requireWorkspaceAccess(refreshed, env, store), { status: 401 });
+});
+
+test("shared username/password login creates revocable sessions without changing integration credentials", async () => {
+  const password = "unit-only-password!";
+  const configured = { ...env, WORKSPACE_LOGIN_USERNAME: "Unit Team", WORKSPACE_LOGIN_PASSWORD_HASH: await hashWorkspacePassword(password) };
+  const store = sessionStore();
+  const response = await handleWorkspaceSession(req(), configured, "login", store, { username: "Unit Team", password });
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(JSON.stringify([...store.rows.values()]), /unit-only-password/);
+  const request = req({ cookie: response.headers.get("set-cookie")!.split(";")[0] });
+  await requireWorkspaceAccess(request, configured, store);
+  await requireWorkspaceAccess(req({ authorization: `Bearer ${key}` }), configured, store);
+  await assert.rejects(requireWorkspaceAccess(request, { ...configured, WORKSPACE_LOGIN_PASSWORD_HASH: await hashWorkspacePassword("different-unit-password") }, store), { status: 401 });
+  for (const input of [{ username: "Unit Team", password: "wrong" }, { username: "unit team", password }, { username: "Unit Team", password: `${password} ` }, { username: "Unit Team", password: null }]) {
+    await assert.rejects(handleWorkspaceSession(req(), configured, "login", store, input), { status: 401 });
+  }
+});
+
+test("login uses the parsed request credentials and respects persistent throttling before password work", async () => {
+  const configured = { ...env, WORKSPACE_LOGIN_USERNAME: "Unit", WORKSPACE_LOGIN_PASSWORD_HASH: await hashWorkspacePassword("unit-password") };
+  const store = { ...sessionStore(), limitLogin: async () => true };
+  const request = new Request("https://hilite.example/api/meta-whatsapp", { method: "POST", headers: { origin: "https://hilite.example", "content-type": "application/json" }, body: JSON.stringify({ action: "login", username: "Unit", password: "unit-password" }) });
+  const response = await handleMetaWhatsAppRequest(request, configured, { sessionStore: store });
+  assert.equal(response.status, 200);
+  const blocked = { ...store, limitLogin: async () => false };
+  await assert.rejects(handleWorkspaceSession(req(), configured, "login", blocked, { username: "Unit", password: "unit-password" }), { status: 429 });
 });
 
 test("expired, fabricated and revoked browser sessions cannot read the workspace", async () => {

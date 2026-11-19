@@ -3,8 +3,9 @@ import { Link } from "react-router";
 import { Megaphone, RefreshCw, Upload, UserPlus } from "lucide-react";
 import { checkOutreachConnection, getOutreachActivity, getSummary, type OutreachActivity } from "../../lib/api";
 import { Button, Card, DataTable, EmptyState, PageHeader, Skeleton, StatCard, StatusPill, buttonVariants } from "../components/system";
+import { deliveryLabels } from "../../lib/delivery-status";
 
-export const deliveryLabels = { draft: "Ready to send", sending: "Awaiting confirmation", accepted: "Accepted by Meta", sent: "Sent", delivered: "Delivered", read: "Read", failed: "Failed", unknown: "Delivery unconfirmed", suppressed: "Unsubscribed" };
+export { deliveryLabels } from "../../lib/delivery-status";
 
 export default function OutreachWorkspacePage({ view = "home" }: { view?: "home" | "campaigns" }) {
   const [data, setData] = useState<OutreachActivity | null>(null);
@@ -55,11 +56,19 @@ export default function OutreachWorkspacePage({ view = "home" }: { view?: "home"
       </div>
       <Card title="Your campaigns">
         {loading && !data ? <Skeleton rows={3} variant="table" label="Loading campaigns" /> : data ? <DataTable columns={[
-          { key: "title", header: "Campaign", cell: row => <Link className="font-medium underline decoration-ink/20 underline-offset-4" to={`/reengage/campaigns/${row.id}`}>{row.title}</Link> },
-          { key: "audience", header: "Recipients", cell: row => row.audience_count },
-          { key: "status", header: "Status", cell: row => row.status === "sent" ? "All recipients attempted" : row.status === "sending" ? "In progress" : row.status === "paused" ? "Review results" : "Draft" },
+          { key: "title", header: "Campaign", cell: row => <div><Link className="font-medium underline decoration-ink/20 underline-offset-4" to={`/reengage/campaigns/${row.id}`}>{row.title}</Link><p className="mt-1 text-chip text-ink-2">Updated {new Date(row.updated_at).toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", day: "numeric", month: "short" })}</p></div> },
+          { key: "status", header: "Status", cell: row => row.status === "sent" ? "Completed" : row.status === "sending" ? "In progress" : row.status === "paused" ? "Review results" : "Draft" },
+          { key: "sent", header: "Sent / total", cell: row => <div className="min-w-24"><Link aria-label={`View sending results for ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/campaigns/${row.id}#delivery-results`}>{row.metrics?.accepted ?? 0} / {row.metrics?.total ?? row.audience_count}</Link><progress aria-label={`Sending progress for ${row.title}`} className="mt-2 block h-1.5 w-full accent-accent" max={Math.max(1, row.metrics?.total ?? row.audience_count)} value={row.metrics?.accepted ?? 0} /></div> },
+          { key: "notSent", header: "Not sent", cell: row => <Link aria-label={`View unsent recipients for ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/campaigns/${row.id}?results=notSent#delivery-results`}>{row.metrics?.notSent ?? row.audience_count}</Link> },
+          { key: "delivered", header: "Delivered", cell: row => row.metrics?.delivered ?? 0 },
+          { key: "read", header: "Read", cell: row => row.metrics?.read ?? 0 },
+          { key: "replies", header: "Replies", cell: row => <Link aria-label={`View replies to ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=replies`}>{row.metrics?.replies ?? 0}</Link> },
+          { key: "attending", header: "Attending", cell: row => <Link aria-label={`View attending contacts for ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=attending`}>{row.metrics?.attending ?? 0}</Link> },
+          { key: "notAttending", header: "Not attending", cell: row => <Link aria-label={`View contacts not attending ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=not_attending`}>{row.metrics?.notAttending ?? 0}</Link> },
+          { key: "unsubscribed", header: "Unsubscribed", cell: row => <Link aria-label={`View unsubscribed contacts for ${row.title}`} className="underline decoration-ink/20 underline-offset-4" to={`/reengage/inbox?campaign=${row.id}&response=unsubscribed`}>{row.metrics?.unsubscribed ?? 0}</Link> },
           { key: "open", header: <span className="sr-only">Open campaign</span>, cell: row => <Link className={buttonVariants({ size: "sm", variant: "secondary" })} to={`/reengage/campaigns/${row.id}`}>{row.status === "draft" ? "Review & send" : "View results"}</Link> },
         ]} rows={data.campaigns} rowKey={row => row.id} emptyState={<EmptyState icon={Megaphone} message="No campaigns yet" action={<Link className={buttonVariants({ variant: "primary" })} to="/reengage/campaigns/new">Create campaign</Link>} />} /> : null}
+        <p className="mt-4 text-chip text-ink-2">Sent means accepted by Meta. Delivery and read receipts update separately. Earlier replies may not be available.</p>
       </Card>
       <Card title="Recent sending activity">
         {loading && !data ? <Skeleton rows={3} variant="table" label="Loading sending activity" /> : data ? <DataTable columns={[

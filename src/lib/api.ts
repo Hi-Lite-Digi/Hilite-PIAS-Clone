@@ -105,7 +105,10 @@ export type CampaignRecord = {
   status: "draft" | "queued" | "sending" | "sent" | "paused";
   created_at: string;
   updated_at: string;
+  metrics?: CampaignMetrics;
 };
+
+export type CampaignMetrics = { total: number; accepted: number; notSent: number; delivered: number; read: number; failed: number; replies: number; attending: number; notAttending: number; unsubscribed: number };
 
 export type TemplateDelivery = {
   id: string;
@@ -220,6 +223,10 @@ export type ReplyMessageRecord = {
   senderContact: string;
   occurredAt: string;
   body: string;
+  campaignId?: string | null;
+  campaignTitle?: string | null;
+  deliveryStatus?: TemplateDelivery["status"];
+  response?: "attending" | "not_attending" | "unsubscribed" | null;
   attachment?: {
     kind: "image" | "sticker";
     name: string;
@@ -246,6 +253,8 @@ export type ReplyConversationRecord = {
   read: boolean;
   starred: boolean;
   category: ReplyCategory;
+  hasReplies?: boolean;
+  replyEnabled?: boolean;
   thread: ReplyMessageRecord[];
 };
 

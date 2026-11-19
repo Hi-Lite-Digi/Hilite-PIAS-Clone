@@ -21,7 +21,7 @@ function PrivacyPage() {
           <section>
             <h2 className="text-section-title font-medium text-ink">Information used</h2>
             <p className="mt-2">
-              An authorised workspace operator can supply a person's name, phone number, email, consent or subscription status and campaign details. Hilite also processes the selected message template, message identifiers, delivery status and failure information. The workspace includes fictional sample contacts; real contacts added for testing are personal data.
+              An authorised workspace operator can supply a person's name, phone number, email, consent or subscription status and campaign details. Hilite also processes the selected message template, message identifiers, delivery status, failure information and incoming WhatsApp replies. The workspace includes fictional sample contacts; real contacts added for testing are personal data.
             </p>
           </section>
 
@@ -31,14 +31,14 @@ function PrivacyPage() {
               Hilite uses this information to manage leads and campaigns, send operator-approved WhatsApp messages, honour recorded messaging preferences and investigate delivery problems. Meta/WhatsApp processes messages and delivery events. Vercel hosts the application and diagnostic logs. Supabase stores workspace contacts and campaign records. Private service credentials are kept on the server.
             </p>
             <p className="mt-2">
-              Delivery history stores message identifiers, timestamps, status and error codes in the private workspace database. It filters out other WhatsApp accounts and does not store incoming message text or contact profiles from these callbacks. Receiving a delivery event does not trigger an automatic reply or resend.
+              Delivery history stores message identifiers, timestamps, status and error codes in the private workspace database. The inbox stores incoming message text, button responses, sender names and phone numbers from the connected WhatsApp number. Media messages without a downloaded attachment appear as a description of the media type. Callbacks from other WhatsApp accounts are filtered out. Receiving a message or delivery event does not trigger an automatic reply or resend.
             </p>
           </section>
 
           <section>
             <h2 className="text-section-title font-medium text-ink">Retention and choices</h2>
             <p className="mt-2">
-              Workspace records are retained for the demo's operational history until removed through the workspace or an authorised deletion request. Hosting diagnostic logs follow the hosting provider's configured retention. Recipients can choose Unsubscribe or reply UNSUBSCRIBE; replies are not yet automatically processed by this demo, so the operator must handle requests manually.
+              Workspace records are retained for the demo's operational history until removed through the workspace or an authorised deletion request. Hosting diagnostic logs follow the hosting provider's configured retention. Recipients can choose Unsubscribe or reply UNSUBSCRIBE; recorded requests mark matching contacts as unsubscribed and suppress pending invitations. The operator must handle requests that cannot be matched to a saved contact and any other consent-withdrawal requests.
             </p>
           </section>
 
@@ -52,7 +52,7 @@ function PrivacyPage() {
           </section>
         </div>
 
-        <p className="mt-10 border-t border-line pt-5 text-chip text-ink-3">Last updated: 12 November 2026</p>
+        <p className="mt-10 border-t border-line pt-5 text-chip text-ink-3">Last updated: 19 November 2026</p>
       </article>
     </main>
   );

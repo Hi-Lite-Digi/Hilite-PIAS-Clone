@@ -61,6 +61,13 @@ export default function TemplateCampaignPage() {
     request<TestConnection>("status").then(result => { if (active) setConnection(result); }).catch(cause => { if (active) setConnectionError(cause.message); });
     return () => { active = false; };
   }, [refresh, request]);
+  useEffect(() => {
+    if (!id || !campaign || campaign.status === "draft" || busy) return;
+    const poll = () => { if (!document.hidden) void refresh().catch(() => undefined); };
+    const timer = window.setInterval(poll, 5_000);
+    document.addEventListener("visibilitychange", poll);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
+  }, [id, campaign?.status, busy, refresh]);
   const selected = useMemo(() => leads.filter(lead => selectedIds.includes(lead.id)), [leads, selectedIds]);
   const query = search.trim().toLowerCase();
   const matching = leads.filter(lead => `${lead.name} ${lead.phone || ""} ${lead.email || ""}`.toLowerCase().includes(query));
@@ -103,6 +110,8 @@ export default function TemplateCampaignPage() {
     finally { setProgress(""); await refresh().catch(() => undefined); setBusy(false); setConsented(false); }
   }
   const canSend = campaign?.audience.template === definition.name && (campaign.status === "draft" || (campaign.status === "sending" && deliveries.some(item => item.status === "draft")));
+  const resultFilter = params.get("results") || "all";
+  const visibleDeliveries = deliveries.filter(row => resultFilter !== "notSent" || !["accepted", "sent", "delivered", "read"].includes(row.status));
   return <main className="min-h-0 flex-1 overflow-y-auto bg-bg px-4 py-5 md:px-7 md:py-7">
     <div className="space-y-6">
       <Link className="inline-flex min-h-11 items-center gap-2 text-label text-ink-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50" to="/reengage/campaigns"><ArrowLeft aria-hidden="true" className="size-4" />Campaigns</Link>
@@ -128,15 +137,18 @@ export default function TemplateCampaignPage() {
           </Card>
         </div>
         {editable && <Button disabled={busy} loading={busy} onClick={() => void save()}><Save aria-hidden="true" className="size-4" />Save campaign</Button>}
-        {deliveries.length > 0 && <Card title="Delivery results">
+        {deliveries.length > 0 && <section className="scroll-mt-6" id="delivery-results"><Card title="Delivery results" action={<Link className="text-label font-medium underline underline-offset-4" to={resultFilter === "notSent" ? `/reengage/campaigns/${id}#delivery-results` : `/reengage/campaigns/${id}?results=notSent#delivery-results`}>{resultFilter === "notSent" ? "Show all recipients" : "Show not sent"}</Link>}>
           <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Recipients" value={deliveries.length} />
             <StatCard label="Accepted by Meta" value={deliveries.filter(item => ["accepted", "sent", "delivered", "read"].includes(item.status)).length} />
             <StatCard label="Confirmed delivered" value={deliveries.filter(item => ["delivered", "read"].includes(item.status)).length} />
             <StatCard label="Awaiting send" value={deliveries.filter(item => item.status === "draft").length} />
           </div>
-          <DataTable columns={[{ key: "lead", header: "Lead", cell: row => row.lead?.name || `Contact ${row.lead_id}` }, { key: "phone", header: "WhatsApp", cell: row => `+${row.phone}` }, { key: "status", header: "Status", cell: row => <div>{deliveryLabel[row.status]}{row.failure_reason && <p className="mt-1 text-chip text-danger">{row.failure_reason}</p>}</div> }]} rows={deliveries} rowKey={row => row.id} />
-        </Card>}
+          <div className="mb-5 flex flex-wrap gap-x-6 gap-y-3 text-label">
+            {([['replies', 'Replies', 'replies'], ['attending', 'Attending', 'attending'], ['notAttending', 'Not attending', 'not_attending'], ['unsubscribed', 'Unsubscribed', 'unsubscribed']] as const).map(([key, label, response]) => <Link className="inline-flex min-h-11 items-center gap-2 rounded-control underline decoration-ink/20 underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50" key={key} to={`/reengage/inbox?campaign=${id}&response=${response}`}>{label} <span className="font-semibold tabular-nums">{campaign?.metrics?.[key] ?? 0}</span></Link>)}
+          </div>
+          <DataTable columns={[{ key: "lead", header: "Lead", cell: row => row.lead?.name || `Contact ${row.lead_id}` }, { key: "phone", header: "WhatsApp", cell: row => `+${row.phone}` }, { key: "status", header: "Status", cell: row => <div>{deliveryLabel[row.status]}{row.failure_reason && <p className="mt-1 text-chip text-danger">{row.failure_reason}</p>}</div> }]} rows={visibleDeliveries} rowKey={row => row.id} emptyState={<p className="text-label text-ink-2">No recipients in this group.</p>} />
+        </Card></section>}
         {canSend && <Card title="Send campaign">
           <p className="mb-4 text-label text-ink-2">{connection?.ready ? "Hi-Hunt connected · Template approved" : connectionError || connection?.requirements.join(" ") || "Checking WhatsApp connection…"}</p>
           <label className="mb-4 flex min-h-11 items-center gap-3 text-label"><input checked={consented} className="size-5 shrink-0 accent-ink focus-visible:ring-3 focus-visible:ring-ring/50" disabled={busy} onChange={event => setConsented(event.target.checked)} type="checkbox" />The selected recipients agreed to receive this message.</label>

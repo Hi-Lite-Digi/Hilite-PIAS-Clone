@@ -3,7 +3,8 @@ import { requireWorkspaceAccess, workspaceProtectionEnabled, createWorkspaceDb }
 import { handleTemplateCampaignRequest } from "./template-campaigns.js";
 import { handleGmailSetup, gmailConnectionStatus } from "./gmail-connection.js";
 import { handlePublicHRDiscovery } from "./public-hr-discovery.js";
-import { outreachActivity, isSampleLead } from "./outreach-activity.js";
+import { outreachActivity, isSampleLead, trackedDeliveries } from "./outreach-activity.js";
+import { correlateMetaReplies, metaReplyResponse } from "./meta-inbound.js";
 
 const json = (body, status = 200, headers = {}) =>
   new Response(JSON.stringify(body), {
@@ -432,7 +433,8 @@ async function receiveWhatsAppInbound(request, env) {
 
 function replyConversationKey(message) {
   if (message.lead_id) return `lead:${message.lead_id}`;
-  if (message.sender_phone || message.recipient_phone) return `phone:${message.sender_phone || message.recipient_phone}`;
+  const phone = message.direction === "outbound" ? message.recipient_phone : message.sender_phone;
+  if (phone) return `phone:${normaliseWhatsAppPhone(phone)}`;
   return `chat:${message.chat_id || message.sender_platform_id || message.id}`;
 }
 
@@ -454,10 +456,11 @@ function colourForKey(value) {
 async function listWhatsAppReplies(env) {
   const messageResponse = await supabaseFetch(
     env,
-    "/rest/v1/whatsapp_messages?select=*&order=occurred_at.asc&limit=1000",
+    "/rest/v1/whatsapp_messages?select=*&order=occurred_at.desc,id.desc&limit=1000",
   );
   const loadedMessages = await messageResponse.json();
-  const messages = workspaceProtectionEnabled(env) ? loadedMessages.filter(message => message.raw_metadata?.demo !== true) : loadedMessages;
+  let messages = workspaceProtectionEnabled(env) ? loadedMessages.filter(message => message.raw_metadata?.demo !== true) : loadedMessages;
+  messages = correlateMetaReplies(messages).sort((left, right) => Date.parse(left.occurred_at) - Date.parse(right.occurred_at) || Number(left.id) - Number(right.id));
   const leadIds = [...new Set(messages.map((message) => message.lead_id).filter(Boolean))];
   const campaignIds = [...new Set(messages.map((message) => message.campaign_id).filter(Boolean))];
   const [leadResponse, campaignResponse] = await Promise.all([
@@ -472,6 +475,14 @@ async function listWhatsAppReplies(env) {
   const campaigns = campaignResponse ? await campaignResponse.json() : [];
   const leadMap = new Map(leads.map((lead) => [Number(lead.id), lead]));
   const campaignMap = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const leadsByPhone = new Map(leads.map(lead => [normaliseWhatsAppPhone(lead.phone), lead]));
+  messages = messages.map(message => {
+    const phone = message.direction === "outbound" ? message.recipient_phone : message.sender_phone;
+    return message.lead_id ? message : { ...message, lead_id: leadsByPhone.get(normaliseWhatsAppPhone(phone))?.id || null };
+  });
+  const metaOutbound = messages.filter(message => message.direction === "outbound" && message.raw_metadata?.provider === "meta");
+  const projected = metaOutbound.length ? await trackedDeliveries(createWorkspaceDb(env), metaOutbound.map(message => ({ id: message.id, meta_message_id: message.external_message_id, status: "accepted" }))) : [];
+  const deliveryById = new Map(projected.map(row => [row.id, row.status]));
   const imagePaths = [...new Set(messages
     .map((message) => String(message?.raw_metadata?.imagePath || ""))
     .filter(privateMediaPathIsValid))];
@@ -494,20 +505,25 @@ async function listWhatsAppReplies(env) {
   const conversations = [];
   for (const [key, threadMessages] of grouped.entries()) {
     const inbound = threadMessages.filter((message) => message.direction === "inbound");
-    if (!inbound.length) continue;
     const latestInbound = inbound[inbound.length - 1];
-    const lead = latestInbound.lead_id ? leadMap.get(Number(latestInbound.lead_id)) : null;
-    const campaign = latestInbound.campaign_id ? campaignMap.get(latestInbound.campaign_id) : null;
-    const leadName = lead?.name || latestInbound.sender_name || latestInbound.sender_phone || "WhatsApp contact";
-    const phone = normaliseWhatsAppPhone(lead?.phone) || latestInbound.sender_phone || null;
+    const latest = threadMessages[threadMessages.length - 1];
+    const anchor = latestInbound || latest;
+    const lead = anchor.lead_id ? leadMap.get(Number(anchor.lead_id)) : null;
+    const campaign = latest.campaign_id ? campaignMap.get(latest.campaign_id) : null;
+    const phone = normaliseWhatsAppPhone(lead?.phone) || (latest.direction === "outbound" ? latest.recipient_phone : latest.sender_phone) || null;
+    const leadName = lead?.name || latestInbound?.sender_name || latest.raw_metadata?.recipient_name || phone || "WhatsApp contact";
     const hasRecordedOutbound = threadMessages.some((message) => message.direction === "outbound");
     const thread = threadMessages.map((message) => ({
       id: String(message.id),
       from: message.direction === "outbound" ? "us" : "lead",
-      senderName: message.direction === "outbound" ? "Alex Thompson" : (leadName || "WhatsApp contact"),
-      senderContact: message.direction === "outbound" ? "HiHunt WhatsApp" : (phone || latestInbound.sender_platform_id || "WhatsApp"),
+      senderName: message.direction === "outbound" ? "Hi-Hunt" : (leadName || "WhatsApp contact"),
+      senderContact: message.direction === "outbound" ? "Hi-Hunt WhatsApp" : (phone || latestInbound?.sender_platform_id || "WhatsApp"),
       occurredAt: message.occurred_at,
       body: message.body,
+      campaignId: message.campaign_id || null,
+      campaignTitle: campaignMap.get(message.campaign_id)?.title || null,
+      deliveryStatus: deliveryById.get(message.id),
+      response: message.direction === "inbound" ? message.raw_metadata?.response || metaReplyResponse(message.body) : null,
       ...(message.raw_metadata?.imagePath
         ? { attachment: {
             kind: message.raw_metadata.mediaKind === "sticker" ? "sticker" : "image",
@@ -517,11 +533,11 @@ async function listWhatsAppReplies(env) {
           } }
         : {}),
     }));
-    if (campaign && !hasRecordedOutbound) {
+    if (campaign && !hasRecordedOutbound && !workspaceProtectionEnabled(env)) {
       thread.unshift({
         id: `campaign:${campaign.id}`,
         from: "us",
-        senderName: "Alex Thompson",
+        senderName: "Hi-Hunt",
         senderContact: "HiHunt WhatsApp",
         occurredAt: campaign.updated_at,
         body: personalisedWhatsAppMessage(campaign.message, leadName),
@@ -529,7 +545,7 @@ async function listWhatsAppReplies(env) {
     }
     thread.sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
     conversations.push({
-      id: Number(latestInbound.id),
+      id: Number(anchor.id),
       leadId: lead?.id || null,
       campaignId: campaign?.id || null,
       leadName,
@@ -541,11 +557,13 @@ async function listWhatsAppReplies(env) {
       phone,
       campaign: campaign?.title || "Direct WhatsApp conversation",
       subject: campaign ? `WhatsApp · ${campaign.title}` : "WhatsApp conversation",
-      preview: latestInbound.body.replace(/\s+/g, " ").slice(0, 180),
-      occurredAt: latestInbound.occurred_at,
-      read: Boolean(latestInbound.read_at),
-      starred: Boolean(latestInbound.starred),
-      category: REPLY_CATEGORIES.has(latestInbound.category) ? latestInbound.category : "Follow-up",
+      preview: `${latest.direction === "outbound" ? "You: " : ""}${latest.body.replace(/\s+/g, " ").slice(0, 180)}`,
+      occurredAt: latest.occurred_at,
+      read: latestInbound ? Boolean(latestInbound.read_at) : true,
+      starred: Boolean(latestInbound?.starred),
+      category: REPLY_CATEGORIES.has(latestInbound?.category) ? latestInbound.category : "Follow-up",
+      hasReplies: Boolean(latestInbound),
+      replyEnabled: !workspaceProtectionEnabled(env) && Boolean(latestInbound),
       thread,
     });
   }

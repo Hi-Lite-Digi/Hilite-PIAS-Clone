@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { buildTestMessage } from "../scripts/test-meta-template.mjs";
 import { createMetaTestStore } from "./meta-test-store.js";
-import { checkWorkspaceOrigin, requireWorkspaceAccess, handleWorkspaceSession } from "./workspace-session.js";
+import { checkWorkspaceOrigin, requireWorkspaceAccess, handleWorkspaceSession, createSessionStore } from "./workspace-session.js";
 import { saveDirectTemplateHistory } from "./outreach-activity.js";
 
 const definition = JSON.parse(readFileSync(new URL("../config/pias-clone-demo-template.json", import.meta.url), "utf8"));
@@ -123,7 +123,7 @@ export async function sendTemplate(env, recipient, firstName, fetcher = fetch, l
   return { accepted: true, messageId: result.messages[0].id, recipient: `Number ending ${recipient.slice(-4)}`, deliveryConfirmed: false };
 }
 
-export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env), sessionStore } = {}) {
+export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch, loadPoster = () => readFile(new URL("../assets/demo/cpf-webinar-poster.png", import.meta.url)), store = createMetaTestStore(env), sessionStore = createSessionStore(env) } = {}) {
   try {
     if (request.method !== "POST") return json({ error: "Use POST for the private WhatsApp test connection." }, 405);
     checkWorkspaceOrigin(request);
@@ -131,7 +131,7 @@ export async function handleMetaWhatsAppRequest(request, env, { fetcher = fetch,
     if (raw.length > 2048) throw failure("The test request is too large.", 413);
     let input;
     try { input = JSON.parse(raw); } catch { throw failure("Enter valid test details."); }
-    if (["login", "session", "logout"].includes(input?.action)) return await handleWorkspaceSession(request, env, input.action, sessionStore);
+    if (["login", "session", "logout"].includes(input?.action)) return await handleWorkspaceSession(request, env, input.action, sessionStore, input);
     await requireWorkspaceAccess(request, env, sessionStore);
     checkMetaSetup(env);
     if (!input || !["status", "connect_delivery", "send", "list_leads", "create_lead", "list_campaigns", "create_campaign", "send_campaign"].includes(input.action)) throw failure("Choose a connection check or a private campaign action.");

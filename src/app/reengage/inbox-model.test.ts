@@ -56,7 +56,7 @@ test("inbox threads are filtered by search and campaign before unread-first late
   assert.deepEqual(filterAndSortThreads(rows, "carla", "campaign-two").map((row) => row.id), [3]);
 });
 
-test("campaign filters report unread counts and omit campaigns with zero unread threads", () => {
+test("campaign filters retain read conversations and report unread counts", () => {
   const options = getCampaignFilterOptions([
     thread({ id: 1, campaignId: "campaign-one", campaign: "June Seminar", read: false }),
     thread({ id: 2, campaignId: "campaign-one", campaign: "June Seminar", read: true }),
@@ -66,6 +66,7 @@ test("campaign filters report unread counts and omit campaigns with zero unread 
 
   assert.deepEqual(options, [
     { value: "all", label: "All", count: 2 },
+    { value: "campaign-two", label: "CPF Clinic", count: 0 },
     { value: "campaign-one", label: "June Seminar", count: 1 },
   ]);
 });
